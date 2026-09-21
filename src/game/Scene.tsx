@@ -227,9 +227,9 @@ function Fox({ action, turn }: { action: FoxAction; turn: React.RefObject<number
         {[-1, 1].map((side) => <mesh key={side} position={[side * 0.31, -0.13, -0.43]} rotation-z={side * 0.28} scale={[0.28, 0.23, 0.34]}><sphereGeometry args={[0.72, 10, 7]} /><meshStandardMaterial color={cream} roughness={1} flatShading /></mesh>)}
       </group>
       <group ref={tail} position={[0, 0.16, 0.82]} rotation={[0.18, -0.42, 0]}>
-        <mesh position={[0, 0.02, 0.55]} rotation-x={Math.PI / 2} castShadow scale={[0.42, 0.42, 0.78]}><sphereGeometry args={[0.72, 12, 8]} /><meshStandardMaterial color="#a94529" roughness={0.94} flatShading /></mesh>
-        <mesh position={[0, 0.01, 1.17]} rotation-x={Math.PI / 2} castShadow scale={[0.5, 0.5, 0.85]}><sphereGeometry args={[0.72, 12, 8]} /><meshStandardMaterial color={red} roughness={0.94} flatShading /></mesh>
-        <mesh position={[0, 0, 1.76]} rotation-x={Math.PI / 2} scale={[0.37, 0.37, 0.58]}><sphereGeometry args={[0.72, 12, 8]} /><meshStandardMaterial color={cream} roughness={1} flatShading /></mesh>
+        <mesh position={[0, 0.02, 0.48]} rotation-x={Math.PI / 2} castShadow scale={[0.78, 1, 0.78]}><capsuleGeometry args={[0.28, 0.5, 5, 9]} /><meshStandardMaterial color="#a94529" roughness={0.94} flatShading /></mesh>
+        <mesh position={[0, 0.01, 1.08]} rotation-x={Math.PI / 2} castShadow scale={[1.05, 1, 1.05]}><capsuleGeometry args={[0.31, 0.62, 5, 9]} /><meshStandardMaterial color={red} roughness={0.94} flatShading /></mesh>
+        <mesh position={[0, 0, 1.7]} rotation-x={Math.PI / 2} castShadow scale={[0.78, 1, 0.78]}><capsuleGeometry args={[0.28, 0.48, 5, 9]} /><meshStandardMaterial color={cream} roughness={1} flatShading /></mesh>
       </group>
       {[-0.34, 0.34].flatMap((x) => [-0.53, 0.48].map((z) => {
         const index = (x > 0 ? 2 : 0) + (z > 0 ? 1 : 0);
