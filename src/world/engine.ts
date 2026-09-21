@@ -1,4 +1,7 @@
 import type {
+  DenKeepsake,
+  DenMaterial,
+  DenState,
   Footprint,
   ParticipantId,
   Placement,
