@@ -13,7 +13,7 @@ import {
   nearestNiche,
 } from "./den";
 import { currentCycle, SEASON_PALETTE, type Season } from "./cycle";
-import { drawBackdrop, drawDaylight } from "./layers";
+import { drawBackdrop, drawDaylight, drawForeground } from "./layers";
 import { drawDenInterior, drawDenMouth, drawInvitation } from "./DenScene";
 import { worldEngine } from "./engine";
 import { useUiStore, type Carried } from "./ui-store";
@@ -1255,9 +1255,7 @@ export function WorldCanvas() {
       ctx.restore();
 
       // layer three: near branches and ferns framing the picture
-      // the foreground branch-and-fern framing layer is intentionally left
-      // empty so the view stays open and the bottom stays free of yellow bands
-
+      drawForeground(ctx, cameraX, cameraY, viewWidth, viewHeight, cycle, now);
 
       // the light of the actual hour
       drawDaylight(ctx, viewWidth, viewHeight, cycle);
