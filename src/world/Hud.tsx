@@ -261,7 +261,7 @@ export function Hud() {
                 audio.init();
                 setVolume(Number(event.target.value));
               }}
-              className="pointer-events-auto w-28 accent-[#e7e4d8]"
+              className="pointer-events-auto hidden w-28 accent-[#e7e4d8] md:block"
               aria-label="Volume"
             />
           </div>
@@ -287,7 +287,7 @@ export function Hud() {
       ) : null}
 
       {discovery ? (
-        <div className="absolute left-1/2 top-16 w-72 -translate-x-1/2 rounded-2xl border border-white/10 bg-[#1d2620]/70 px-4 py-3 text-center text-sm text-[#f0ecdf] shadow-lg backdrop-blur-md">
+        <div className="absolute right-4 top-4 w-44 rounded-2xl border border-white/10 bg-[#1d2620]/70 px-4 py-3 text-center text-sm text-[#f0ecdf] shadow-lg backdrop-blur-md md:left-1/2 md:right-auto md:top-16 md:w-72 md:-translate-x-1/2">
           {discovery}
         </div>
       ) : null}
