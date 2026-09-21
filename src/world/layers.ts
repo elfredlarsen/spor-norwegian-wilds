@@ -69,7 +69,7 @@ export function drawBackdrop(
   ctx.globalAlpha = 1;
 }
 
-/** Near branches and ferns, softly out of focus at the screen edges. */
+/** Near branches and ferns, softly out of focus at the screen corners. */
 export function drawForeground(
   ctx: CanvasRenderingContext2D,
   cameraX: number,
@@ -80,45 +80,38 @@ export function drawForeground(
   time: number,
 ) {
   const palette = SEASON_PALETTE[cycle.season];
-  const shift = -cameraX * 0.22;
-  const bob = Math.sin(time * 0.0005) * 6;
+  const shift = -cameraX * 0.16;
+  const bob = Math.sin(time * 0.0004) * 5;
+  const leaf = palette.leaf ?? "#43533f";
   ctx.save();
-  ctx.globalAlpha = 0.42;
-  ctx.fillStyle = palette.leaf ?? "#3c4b3a";
+  ctx.filter = "blur(7px)";
+  ctx.globalAlpha = 0.34;
+  ctx.fillStyle = leaf;
 
-  // a branch leaning in from the top left
-  ctx.strokeStyle = "#2d2318";
-  ctx.lineWidth = 12;
-  ctx.beginPath();
-  ctx.moveTo(-40 + shift * 0.2, -20);
-  ctx.quadraticCurveTo(viewWidth * 0.22 + shift * 0.2, 40 + bob, viewWidth * 0.42 + shift * 0.2, 10 + bob);
-  ctx.stroke();
-  for (let index = 0; index < 9; index += 1) {
-    const t = index / 9;
-    const x = -20 + shift * 0.2 + t * viewWidth * 0.44;
-    const y = 18 + Math.sin(t * Math.PI) * 30 + bob;
-    ctx.beginPath();
-    ctx.ellipse(x, y + 14, 22, 9, 0.5 + t, 0, Math.PI * 2);
-    ctx.fill();
+  const clusters: { x: number; y: number; r: number }[] = [
+    { x: -30 + shift * 0.3, y: -20, r: 120 },
+    { x: 90 + shift * 0.3, y: -60, r: 90 },
+    { x: viewWidth + 30 - shift * 0.3, y: viewHeight + 20, r: 140 },
+    { x: viewWidth - 90 - shift * 0.3, y: viewHeight + 60, r: 100 },
+    { x: -40 + shift * 0.2, y: viewHeight + 40, r: 130 },
+  ];
+  for (const cluster of clusters) {
+    for (let blob = 0; blob < 6; blob += 1) {
+      const angle = (blob / 6) * Math.PI * 2;
+      ctx.beginPath();
+      ctx.ellipse(
+        cluster.x + Math.cos(angle) * cluster.r * 0.6,
+        cluster.y + Math.sin(angle) * cluster.r * 0.5 + bob,
+        cluster.r * 0.55,
+        cluster.r * 0.38,
+        angle,
+        0,
+        Math.PI * 2,
+      );
+      ctx.fill();
+    }
   }
-
-  // ferns along the bottom corners
-  ctx.strokeStyle = palette.leaf ?? "#41513c";
-  ctx.lineWidth = 6;
-  for (let frond = 0; frond < 12; frond += 1) {
-    const side = frond < 6 ? 0 : 1;
-    const base = side === 0 ? 20 + frond * 34 : viewWidth - 20 - (frond - 6) * 34;
-    const lean = side === 0 ? 40 : -40;
-    ctx.beginPath();
-    ctx.moveTo(base + shift * 0.1, viewHeight + 20);
-    ctx.quadraticCurveTo(
-      base + lean + shift * 0.1,
-      viewHeight - 70,
-      base + lean * 1.8 + bob + shift * 0.1,
-      viewHeight - 140,
-    );
-    ctx.stroke();
-  }
+  ctx.filter = "none";
   ctx.restore();
 }
 
