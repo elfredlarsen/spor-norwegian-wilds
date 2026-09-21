@@ -1206,6 +1206,12 @@ export function WorldCanvas() {
 
       ctx.restore();
 
+      // layer three: near branches and ferns framing the picture
+      drawForeground(ctx, cameraX, cameraY, viewWidth, viewHeight, cycle, now);
+
+      // the light of the actual hour
+      drawDaylight(ctx, viewWidth, viewHeight, cycle);
+
       // ---- weather ----
       if (weather === "rain") {
         ctx.save();
