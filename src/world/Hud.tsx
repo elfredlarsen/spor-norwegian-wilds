@@ -317,6 +317,7 @@ function CompanionPanel({ multiplayer }: { multiplayer: MultiplayerStatus }) {
 }
 
 export function Hud({ multiplayer }: { multiplayer: MultiplayerStatus }) {
+  console.log("MP hud", JSON.stringify(multiplayer));
   const {
     participant,
     tool,
