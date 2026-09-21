@@ -391,6 +391,19 @@ function drawTree(ctx: CanvasRenderingContext2D, feature: Feature, time: number,
     ctx.ellipse(-9 * feature.scale + sway, -14 * feature.scale, 12 * feature.scale, 9 * feature.scale, -0.4, 0, Math.PI * 2);
     ctx.fill();
     ctx.globalAlpha = 1;
+    if (season === "winter") {
+      // dustings of snow resting on the needle layers
+      ctx.fillStyle = "#eef3f2";
+      ctx.globalAlpha = 0.8;
+      for (let cap = 0; cap < 6; cap += 1) {
+        const angle = (cap / 6) * Math.PI * 2 + hash2(feature.x + cap, feature.y) * 0.4;
+        const r = (14 + (cap % 3) * 8) * feature.scale;
+        ctx.beginPath();
+        ctx.ellipse(Math.cos(angle) * r + sway, Math.sin(angle) * r * 0.7 - r * 0.35, 5 * feature.scale, 2.4 * feature.scale, angle, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
   } else {
     // root flare
     ctx.fillStyle = "#8a8270";
@@ -453,6 +466,21 @@ function drawTree(ctx: CanvasRenderingContext2D, feature: Feature, time: number,
       ctx.ellipse(sway - 8 * feature.scale, -9 * feature.scale, 5 * feature.scale, 3.5 * feature.scale, 0, 0, Math.PI * 2);
       ctx.fill();
       ctx.globalAlpha = 1;
+      if (season === "spring") {
+        // little blossom clusters scattered through the new leaves
+        for (let bloom = 0; bloom < 7; bloom += 1) {
+          const angle = (bloom / 7) * Math.PI * 2 + hash2(feature.x + bloom * 1.7, feature.y) * 0.6;
+          const r = (10 + hash2(feature.x, feature.y + bloom) * 14) * feature.scale;
+          const bx = Math.cos(angle) * r + sway;
+          const by = Math.sin(angle) * r * 0.8 - r * 0.15;
+          ctx.fillStyle = bloom % 3 === 0 ? "#f6dbe6" : "#fbeef2";
+          ctx.globalAlpha = 0.85;
+          ctx.beginPath();
+          ctx.arc(bx, by, 2.2 * feature.scale, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+      }
     } else {
       // winter: bare branches, with a little snow resting on them
       ctx.strokeStyle = "#8d8577";
@@ -480,7 +508,7 @@ function drawTree(ctx: CanvasRenderingContext2D, feature: Feature, time: number,
   ctx.restore();
 }
 
-function drawRock(ctx: CanvasRenderingContext2D, feature: Feature) {
+function drawRock(ctx: CanvasRenderingContext2D, feature: Feature, season: Season) {
   const tilt = (hash2(feature.x, feature.y) - 0.5) * 0.6;
   softShadow(ctx, feature.x + 5 * feature.scale, feature.y + 6 * feature.scale, 30 * feature.scale, 15 * feature.scale, 0.28);
   ctx.save();
@@ -507,6 +535,14 @@ function drawRock(ctx: CanvasRenderingContext2D, feature: Feature) {
   ctx.ellipse(8 * feature.scale, 7 * feature.scale, 11 * feature.scale, 6 * feature.scale, 0.2, 0, Math.PI * 2);
   ctx.fill();
   ctx.globalAlpha = 1;
+  if (season === "winter") {
+    ctx.fillStyle = "#eef3f2";
+    ctx.globalAlpha = 0.85;
+    ctx.beginPath();
+    ctx.ellipse(-6 * feature.scale, -8 * feature.scale, 13 * feature.scale, 6 * feature.scale, 0.3 + tilt, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
   ctx.restore();
 }
 
@@ -660,9 +696,11 @@ function drawFox(
   ctx.globalAlpha = 1;
 
   ctx.scale(scale, scale);
+  // A faint side-to-side wobble while walking, so the gait reads as livelier than a pure rotation snap.
+  const wobble = moving ? Math.sin(gait * 2) * 0.04 : 0;
   // The sprite's resting pose faces up (screen north); rotate it onto the travel angle,
   // which is measured from +x the way the old hand-drawn fox was.
-  ctx.rotate(angle + Math.PI / 2 + (sensing === "rest" ? 0.22 : 0));
+  ctx.rotate(angle + Math.PI / 2 + (sensing === "rest" ? 0.22 : 0) + wobble);
 
   const bob = sensing === "drink" ? 4 : sensing === "rest" ? 5 : sensing === "dig" ? Math.sin(gait * 3) * 1.8 : moving ? Math.sin(gait) * 1.2 : Math.sin(gait * 0.25) * 0.5;
   ctx.translate(0, bob * 0.2);
@@ -674,8 +712,10 @@ function drawFox(
   }
 
   if (sprite.complete && sprite.naturalWidth > 0) {
-    const h = FOX_VISUAL_LENGTH;
-    const w = h * (sprite.naturalWidth / sprite.naturalHeight);
+    // A gentle squash-and-stretch on the gait cycle gives the run some spring, without new art.
+    const stretch = moving ? Math.sin(gait) * 0.05 : sensing === "dig" ? Math.sin(gait * 3) * 0.03 : 0;
+    const h = FOX_VISUAL_LENGTH * (1 + stretch);
+    const w = FOX_VISUAL_LENGTH * (sprite.naturalWidth / sprite.naturalHeight) * (1 - stretch * 0.6);
     ctx.drawImage(sprite, -w / 2, -h / 2, w, h);
   }
 
@@ -745,6 +785,7 @@ export function WorldCanvas() {
       return { x: streamCenter(y) + side * (streamHalfWidth(y) + 54 + random() * 160), y, size: 18 + random() * 20, wetness: 0, lastSplash: 0 };
     });
     const ripples: Ripple[] = [];
+    const rainSplashes: Ripple[] = [];
     const scents: ScentWisp[] = [];
     // wordless answers: a ring where you touched, motes stirred up as you walk
     const touches: { x: number; y: number; born: number }[] = [];
@@ -758,12 +799,22 @@ export function WorldCanvas() {
       speed: 0.6 + Math.random() * 0.7,
       length: 8 + Math.random() * 14,
     }));
+    const snowFlakes = Array.from({ length: 90 }, () => ({
+      x: Math.random(),
+      y: Math.random(),
+      speed: 0.05 + Math.random() * 0.08,
+      drift: Math.random() * Math.PI * 2,
+      size: 1.4 + Math.random() * 1.8,
+    }));
     const mistBlobs = Array.from({ length: 26 }, () => ({
       x: Math.random(),
       y: Math.random(),
+      baseY: 0,
       radius: 120 + Math.random() * 260,
       drift: 0.004 + Math.random() * 0.01,
+      phase: Math.random() * Math.PI * 2,
     }));
+    for (const blob of mistBlobs) blob.baseY = blob.y;
 
     const resize = () => {
       const ratio = Math.min(window.devicePixelRatio || 1, 2);
@@ -1239,6 +1290,31 @@ export function WorldCanvas() {
         const y = cameraY + random() * viewHeight;
         ripples.push({ x: streamCenter(y) + (random() - 0.5) * streamHalfWidth(y), y, born: now, strength: random() < 0.08 ? 1.25 : 0.7 });
       }
+      // quick little impact rings across the open ground, not just the stream
+      if (weather === "rain") {
+        for (let drop = 0; drop < 3; drop += 1) {
+          if (random() < delta * 6) {
+            rainSplashes.push({
+              x: cameraX + random() * viewWidth,
+              y: cameraY + random() * viewHeight,
+              born: now,
+              strength: 0.6 + random() * 0.6,
+            });
+          }
+        }
+      }
+      for (let index = rainSplashes.length - 1; index >= 0; index -= 1) {
+        const splash = rainSplashes[index];
+        if (!splash) continue;
+        const age = (now - splash.born) / 1000;
+        if (age > 0.4) { rainSplashes.splice(index, 1); continue; }
+        const t = age / 0.4;
+        ctx.strokeStyle = `rgba(220, 232, 232, ${Math.max(0, 0.35 - t * 0.35)})`;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.ellipse(splash.x, splash.y, t * 7 * splash.strength, t * 3 * splash.strength, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      }
       for (let index = ripples.length - 1; index >= 0; index -= 1) {
         const ripple = ripples[index];
         if (!ripple) continue;
@@ -1330,7 +1406,7 @@ export function WorldCanvas() {
         drawables.push({
           y: feature.y,
           draw: () =>
-            feature.kind === "rock" ? drawRock(ctx, feature) : drawTree(ctx, feature, now, cycle.season),
+            feature.kind === "rock" ? drawRock(ctx, feature, cycle.season) : drawTree(ctx, feature, now, cycle.season),
         });
       }
       for (const item of state.placements) {
@@ -1463,6 +1539,7 @@ export function WorldCanvas() {
         for (const blob of mistBlobs) {
           blob.x += blob.drift * delta;
           if (blob.x > 1.2) blob.x = -0.2;
+          blob.y = blob.baseY + Math.sin(now * 0.00025 + blob.phase) * 0.05;
           const px = blob.x * viewWidth;
           const py = blob.y * viewHeight;
           const gradient = ctx.createRadialGradient(px, py, 10, px, py, blob.radius);
@@ -1475,6 +1552,21 @@ export function WorldCanvas() {
         }
         ctx.fillStyle = "rgba(222, 228, 226, 0.18)";
         ctx.fillRect(0, 0, viewWidth, viewHeight);
+        ctx.restore();
+      }
+      // a light, ever-present snowfall through the winter months, regardless of weather
+      if (cycle.season === "winter") {
+        ctx.save();
+        ctx.fillStyle = "rgba(240, 245, 245, 0.75)";
+        for (const flake of snowFlakes) {
+          flake.y += flake.speed * delta * 0.06;
+          if (flake.y > 1) flake.y -= 1;
+          const px = (flake.x + Math.sin(now * 0.0006 + flake.drift) * 0.02) * viewWidth;
+          const py = flake.y * viewHeight;
+          ctx.beginPath();
+          ctx.arc(px, py, flake.size, 0, Math.PI * 2);
+          ctx.fill();
+        }
         ctx.restore();
       }
       // the warm sun is only suggested by the daylight wash and the landscape,
