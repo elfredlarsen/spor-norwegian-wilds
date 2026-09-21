@@ -48,6 +48,7 @@ export function useMultiplayerSync(): MultiplayerStatus {
         if (stale()) return;
         if (!pairing) {
           setStatus({ kind: "unpaired" });
+          console.log("MP set unpaired");
           return;
         }
         if (!pairing.paired) {
