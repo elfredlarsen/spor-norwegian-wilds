@@ -47,7 +47,8 @@ function Terrain() {
   const geometry = useMemo(() => {
     const result = new THREE.PlaneGeometry(86, 86, 48, 48);
     result.rotateX(-Math.PI / 2);
-    const positions = result.attributes.position;
+    const positions = result.attributes["position"];
+    if (!positions) return result;
     for (let index = 0; index < positions.count; index += 1) {
       positions.setY(index, groundHeight(positions.getX(index), positions.getZ(index)));
     }

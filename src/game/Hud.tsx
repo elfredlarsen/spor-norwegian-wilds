@@ -37,7 +37,7 @@ export function Hud() {
   const [showVolume, setShowVolume] = useState(false);
 
   useEffect(() => {
-    forestAudio.setVolume(volume[0] / 100);
+    forestAudio.setVolume((volume[0] ?? 45) / 100);
   }, [volume]);
 
   const stateLabel = action === "resting" ? "Resting in the moss" : action === "sniffing" ? "Scenting the wind" : "Pine glade · Furuskog";
