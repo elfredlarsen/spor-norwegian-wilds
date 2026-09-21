@@ -378,7 +378,7 @@ function drawFox(
   gait: number,
   moving: boolean,
   tint: string,
-  sensing: "sniff" | "drink" | "dig" | null,
+  sensing: "sniff" | "drink" | "dig" | "rest" | null,
 ) {
   ctx.save();
   ctx.translate(x, y);
@@ -388,9 +388,9 @@ function drawFox(
   ctx.ellipse(3, 5, 17, 9, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.globalAlpha = 1;
-  ctx.rotate(angle);
+  ctx.rotate(angle + (sensing === "rest" ? 0.22 : 0));
 
-  const bob = sensing === "drink" ? 4 : sensing === "dig" ? Math.sin(gait * 3) * 1.8 : moving ? Math.sin(gait) * 1.2 : Math.sin(gait * 0.25) * 0.5;
+  const bob = sensing === "drink" ? 4 : sensing === "rest" ? 5 : sensing === "dig" ? Math.sin(gait * 3) * 1.8 : moving ? Math.sin(gait) * 1.2 : Math.sin(gait * 0.25) * 0.5;
   const sway = moving ? Math.sin(gait * 0.5) * 0.28 : Math.sin(gait * 0.2) * 0.1;
 
   // tail
@@ -497,9 +497,10 @@ export function WorldCanvas() {
     let cameraY = 0;
     let cameraReady = false;
     let actionUntil = 0;
-    let actionKind: "sniff" | "drink" | "dig" | null = null;
+    let actionKind: "sniff" | "drink" | "dig" | "rest" | null = null;
     let lastSenseNonce = 0;
     let lastWeather: WeatherKind = worldEngine.state.weather.kind;
+    let lastRainAt = lastWeather === "rain" ? performance.now() : -Infinity;
     const random = seeded(7139);
     const birches = FEATURES.filter((feature) => feature.kind === "birch");
     const birds: Bird[] = birches.slice(0, 13).map((tree, index) => ({
@@ -620,7 +621,7 @@ export function WorldCanvas() {
       if (ui.senseRequest && ui.senseRequest.nonce !== lastSenseNonce) {
         lastSenseNonce = ui.senseRequest.nonce;
         actionKind = ui.senseRequest.kind;
-        actionUntil = now + (actionKind === "sniff" ? 4200 : 2400);
+        actionUntil = now + (actionKind === "sniff" ? 4200 : actionKind === "rest" ? 6000 : 2400);
         walkTarget = null;
         audio.init();
         if (actionKind === "sniff") {
@@ -639,13 +640,16 @@ export function WorldCanvas() {
           } else {
             ui.setDiscovery("The fox listens for running water.");
           }
-        } else {
+        } else if (actionKind === "dig") {
           const found = random();
           const foundKind = found > 0.66 ? "a smooth quartz pebble" : found > 0.32 ? "a small pinecone" : "a cluster of glowing berries";
           ui.setDiscovery(`Beneath the moss: ${foundKind}.`);
           audio.dig();
           if (found <= 0.32) worldEngine.place("berry", position.x + 20, position.y + 10, participant);
           if (found > 0.66) worldEngine.place("stone", position.x + 18, position.y + 12, participant);
+        } else {
+          ui.setDiscovery("The fox curls into the moss and breathes with the quiet forest.");
+          audio.rest();
         }
         ui.clearSenseRequest();
       }
@@ -681,7 +685,9 @@ export function WorldCanvas() {
             at: Date.now(),
           });
           const gravel = nearestFeature(resolved.x, resolved.y, 52)?.kind === "rock";
-          audio.footstep(depth > 0.15 ? "water" : gravel ? "gravel" : "moss");
+          const recentlyWet = lastWeather === "rain" || now - lastRainAt < 22000;
+          const pace = Math.hypot(velocityX, velocityY) / WALK_SPEED;
+          audio.footstep(depth > 0.15 ? "water" : recentlyWet ? "wet" : gravel ? "gravel" : "moss", pace);
         }
       } else {
         gait += delta * 1.4;
@@ -733,6 +739,7 @@ export function WorldCanvas() {
       const state = worldEngine.state;
       const now2 = Date.now();
       const weather = state.weather.kind;
+      if (weather === "rain") lastRainAt = now;
       if (weather !== lastWeather) lastWeather = weather;
 
       for (const puddle of puddles) {

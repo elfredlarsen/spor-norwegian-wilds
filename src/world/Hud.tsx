@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
+import { Button } from "@/components/ui/button";
 import { audio } from "./audio";
 import { worldEngine } from "./engine";
+import { createNatureJournalNote } from "./journal.functions";
 import { padRef } from "./WorldCanvas";
 import { useUiStore } from "./ui-store";
 import { PARTICIPANTS, type ParticipantId, type PlacementKind, type WeatherKind } from "./types";
@@ -18,6 +21,10 @@ const TOOLS: Array<{ kind: PlacementKind; label: string; norwegian: string }> = 
   { kind: "lantern", label: "Light a lantern", norwegian: "lykt" },
   { kind: "berry", label: "Leave glowing berries", norwegian: "glødende bær" },
 ];
+
+const JOURNAL_KEY = "spor.nature-journal.v1";
+
+type JournalEntry = { id: string; observation: string; note: string; createdAt: number };
 
 function Panel({ children }: { children: React.ReactNode }) {
   return (
@@ -119,6 +126,21 @@ export function Hud() {
     requestSense,
   } = useUiStore();
   const lastVisit = useRef<Record<ParticipantId, number>>({ elder: 0, child: 0 });
+  const writeJournalNote = useServerFn(createNatureJournalNote);
+  const [journalOpen, setJournalOpen] = useState(false);
+  const [observation, setObservation] = useState("");
+  const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
+  const [journalBusy, setJournalBusy] = useState(false);
+  const [journalError, setJournalError] = useState<string | null>(null);
+
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(JOURNAL_KEY);
+      if (saved) setJournalEntries(JSON.parse(saved) as JournalEntry[]);
+    } catch {
+      setJournalEntries([]);
+    }
+  }, []);
 
   useEffect(() => {
     audio.setVolume(muted ? 0 : volume / 100);
@@ -175,6 +197,32 @@ export function Hud() {
     }
   };
 
+  const submitJournal = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const value = observation.trim();
+    if (value.length < 2 || journalBusy) return;
+    setJournalBusy(true);
+    setJournalError(null);
+    try {
+      const result = await writeJournalNote({ data: { observation: value } });
+      const entry: JournalEntry = {
+        id: crypto.randomUUID(),
+        observation: value,
+        note: result.text,
+        createdAt: Date.now(),
+      };
+      const next = [entry, ...journalEntries].slice(0, 24);
+      setJournalEntries(next);
+      window.localStorage.setItem(JOURNAL_KEY, JSON.stringify(next));
+      setObservation("");
+      audio.discoveryResonance();
+    } catch (error) {
+      setJournalError(error instanceof Error ? error.message : "Naturdagbogen kunne ikke skrives lige nu.");
+    } finally {
+      setJournalBusy(false);
+    }
+  };
+
   return (
     <div className="pointer-events-none absolute inset-0 z-10 select-none font-[var(--font-display)] text-[#e7e4d8]">
       <div className="absolute left-4 top-4 flex flex-col gap-2">
@@ -208,7 +256,7 @@ export function Hud() {
 
       <div className="absolute bottom-4 left-4 flex flex-col gap-2">
         <Panel>
-          <div className="grid grid-cols-3 gap-1">
+          <div className="grid grid-cols-4 gap-1">
             <SoftButton onClick={() => requestSense("sniff")} title="Scent the air and reveal a faint trail">
               Sniff<span className="block text-xs italic text-[#e7e4d8]/45">snuse</span>
             </SoftButton>
@@ -218,6 +266,9 @@ export function Hud() {
             </SoftButton>
             <SoftButton onClick={() => requestSense("dig")} title="Gently paw through deep moss">
               Paw<span className="block text-xs italic text-[#e7e4d8]/45">grave</span>
+            </SoftButton>
+            <SoftButton onClick={() => requestSense("rest")} title="Curl up and rest in the moss">
+              Rest<span className="block text-xs italic text-[#e7e4d8]/45">hvile</span>
             </SoftButton>
           </div>
         </Panel>
@@ -241,6 +292,16 @@ export function Hud() {
       </div>
 
       <div className="absolute bottom-4 right-4 flex flex-col items-end gap-3">
+        <Panel>
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => setJournalOpen((open) => !open)}
+            className="pointer-events-auto h-auto text-[#e7e4d8]/80 hover:bg-[#e7e4d8]/10 hover:text-[#f4f1e6]"
+          >
+            Naturdagbog <span className="text-xs italic opacity-55">naturdagbok</span>
+          </Button>
+        </Panel>
         <Panel>
           <div className="flex items-center gap-2 px-2 py-1">
             <button
@@ -269,6 +330,40 @@ export function Hud() {
         </Panel>
         <Joystick />
       </div>
+
+      {journalOpen ? (
+        <div className="pointer-events-auto absolute bottom-20 right-4 z-20 w-[min(22rem,calc(100vw-2rem))] rounded-2xl border border-white/10 bg-[#1d2620]/90 p-4 text-[#e7e4d8] shadow-lg backdrop-blur-md md:bottom-28">
+          <div className="mb-3 flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-lg text-[#f4f1e6]">Naturdagbog</h2>
+              <p className="text-xs italic text-[#e7e4d8]/50">naturdagbok</p>
+            </div>
+            <Button type="button" variant="ghost" size="icon" onClick={() => setJournalOpen(false)} aria-label="Luk naturdagbog" className="text-[#e7e4d8]/70 hover:bg-[#e7e4d8]/10">×</Button>
+          </div>
+          <form onSubmit={submitJournal}>
+            <label htmlFor="nature-observation" className="text-sm text-[#e7e4d8]/75">Beskriv et fund, et sted eller et spor</label>
+            <textarea
+              id="nature-observation"
+              value={observation}
+              onChange={(event) => setObservation(event.target.value)}
+              maxLength={800}
+              rows={3}
+              placeholder="Jeg fandt en blank sten ved åen…"
+              className="mt-2 w-full resize-none rounded-lg border border-white/10 bg-[#111813]/55 px-3 py-2 text-sm leading-relaxed text-[#f4f1e6] outline-none placeholder:text-[#e7e4d8]/30 focus:border-white/25"
+            />
+            <Button type="submit" disabled={journalBusy || observation.trim().length < 2} className="mt-2 w-full bg-[#e7e4d8]/18 text-[#f4f1e6] hover:bg-[#e7e4d8]/28">
+              {journalBusy ? "Skoven lytter…" : "Skriv en lille note"}
+            </Button>
+          </form>
+          {journalError ? <p role="alert" className="mt-2 text-xs text-[#f0c9b0]">{journalError}</p> : null}
+          {journalEntries[0] ? (
+            <article className="mt-4 border-t border-white/10 pt-3">
+              <p className="text-xs text-[#e7e4d8]/45">Seneste note</p>
+              <p className="mt-1 text-sm leading-relaxed text-[#f0ecdf]">{journalEntries[0].note}</p>
+            </article>
+          ) : null}
+        </div>
+      ) : null}
 
       <div
         className={`absolute left-1/2 top-4 w-64 -translate-x-1/2 text-center text-sm text-[#e7e4d8]/80 transition-opacity duration-1000 md:w-auto ${

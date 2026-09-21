@@ -12,3 +12,6 @@
 - [x] Verify new interactions on desktop and mobile
 - [x] Enriched procedural Nordic soundscape and tactile surface audio
 - [x] Verify audio controls and action triggers
+- [x] Real-time stream attenuation, weather acoustics, rest and pace-aware footsteps
+- [x] AI-generated personal nature journal note from free text
+- [x] Verify dynamic audio and nature journal on desktop and mobile
