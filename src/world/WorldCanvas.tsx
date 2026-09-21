@@ -1136,7 +1136,7 @@ export function WorldCanvas() {
 
       for (const bird of birds) {
         const distance = Math.hypot(current.x - bird.x, current.y - bird.y);
-        if (!bird.airborne && distance < 112 && moving) {
+        if (!bird.airborne && distance < 112 * seasonPalette.birdActivity + 30 && moving) {
           bird.airborne = true;
           bird.vx = (bird.x - current.x) * 0.55;
           bird.vy = -70 - random() * 40;
