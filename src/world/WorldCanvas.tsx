@@ -210,27 +210,51 @@ function drawTree(ctx: CanvasRenderingContext2D, feature: Feature, time: number,
     ctx.beginPath();
     ctx.ellipse(0, 0, 5.5 * feature.scale, 4 * feature.scale, 0, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = "#7c9455";
-    ctx.globalAlpha = 0.92;
-    for (let clump = 0; clump < 6; clump += 1) {
-      const angle = (clump / 6) * Math.PI * 2;
+    if (palette.leaf) {
+      ctx.fillStyle = palette.leaf;
+      ctx.globalAlpha = 0.92;
+      for (let clump = 0; clump < 6; clump += 1) {
+        const angle = (clump / 6) * Math.PI * 2;
+        ctx.beginPath();
+        ctx.ellipse(
+          Math.cos(angle) * 20 * feature.scale + sway,
+          Math.sin(angle) * 16 * feature.scale,
+          17 * feature.scale,
+          13 * feature.scale,
+          0,
+          0,
+          Math.PI * 2,
+        );
+        ctx.fill();
+      }
+      ctx.fillStyle = palette.leafHighlight ?? palette.leaf;
       ctx.beginPath();
-      ctx.ellipse(
-        Math.cos(angle) * 20 * feature.scale + sway,
-        Math.sin(angle) * 16 * feature.scale,
-        17 * feature.scale,
-        13 * feature.scale,
-        0,
-        0,
-        Math.PI * 2,
-      );
+      ctx.ellipse(sway, -2, 19 * feature.scale, 15 * feature.scale, 0, 0, Math.PI * 2);
       ctx.fill();
+      ctx.globalAlpha = 1;
+    } else {
+      // winter: bare branches, with a little snow resting on them
+      ctx.strokeStyle = "#8d8577";
+      ctx.lineWidth = 2;
+      for (let branch = 0; branch < 7; branch += 1) {
+        const angle = -Math.PI / 2 + (branch - 3) * 0.36;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.quadraticCurveTo(
+          Math.cos(angle) * 14 * feature.scale + sway,
+          Math.sin(angle) * 12 * feature.scale,
+          Math.cos(angle) * 26 * feature.scale + sway,
+          Math.sin(angle) * 22 * feature.scale,
+        );
+        ctx.stroke();
+      }
+      ctx.fillStyle = "#e6ecef";
+      ctx.globalAlpha = 0.5;
+      ctx.beginPath();
+      ctx.ellipse(sway, -8 * feature.scale, 14 * feature.scale, 5 * feature.scale, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
     }
-    ctx.fillStyle = "#93aa66";
-    ctx.beginPath();
-    ctx.ellipse(sway, -2, 19 * feature.scale, 15 * feature.scale, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.globalAlpha = 1;
   }
   ctx.restore();
 }
