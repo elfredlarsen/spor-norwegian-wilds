@@ -1,7 +1,7 @@
 import type { PlacementKind, WeatherKind } from "./types";
 
-type Layer = { gain: GainNode; target: number };
-type FootstepSurface = "moss" | "gravel" | "water";
+type Layer = { gain: GainNode; filter: BiquadFilterNode; target: number };
+type FootstepSurface = "moss" | "gravel" | "wet" | "water";
 type NoiseColour = "white" | "pink" | "brown";
 
 /** A fully procedural, offline soundscape built from gentle filtered noise and resonant tones. */
@@ -9,6 +9,7 @@ class ForestAudio {
   private context: AudioContext | null = null;
   private master: GainNode | null = null;
   private ambience: GainNode | null = null;
+  private ambienceFilter: BiquadFilterNode | null = null;
   private wind: Layer[] = [];
   private water: Layer[] = [];
   private rain: Layer[] = [];
@@ -30,20 +31,26 @@ class ForestAudio {
     const context = new Ctor();
     const master = context.createGain();
     const ambience = context.createGain();
+    const ambienceFilter = context.createBiquadFilter();
     const limiter = context.createDynamicsCompressor();
     master.gain.value = 0;
     ambience.gain.value = 1;
+    ambienceFilter.type = "lowpass";
+    ambienceFilter.frequency.value = 12000;
+    ambienceFilter.Q.value = 0.18;
     limiter.threshold.value = -18;
     limiter.knee.value = 14;
     limiter.ratio.value = 5;
     limiter.attack.value = 0.01;
     limiter.release.value = 0.35;
-    ambience.connect(master);
+    ambience.connect(ambienceFilter);
+    ambienceFilter.connect(master);
     master.connect(limiter);
     limiter.connect(context.destination);
     this.context = context;
     this.master = master;
     this.ambience = ambience;
+    this.ambienceFilter = ambienceFilter;
 
     this.wind = [
       this.makeNoiseLayer("brown", "lowpass", 240, 0.042, 0.08),
@@ -118,7 +125,7 @@ class ForestAudio {
     filter.connect(gain);
     gain.connect(ambience);
     source.start();
-    return { gain, target: gainValue };
+    return { gain, filter, target: gainValue };
   }
 
   private addOrganicGust(layer: Layer | null, depth: number, speed: number, secondSpeed = 0.037) {
@@ -154,12 +161,32 @@ class ForestAudio {
     const rain = this.weather === "rain" ? [0.026, 0.016, 0.014] : [0, 0, 0];
     this.rain.forEach((layer, index) => this.ramp(layer, rain[index] ?? 0, time));
     this.ramp(this.mist, this.weather === "mist" ? 0.025 : 0, this.weather === "mist" ? 2.8 : 1.8);
+    if (this.context && this.ambienceFilter) {
+      this.ambienceFilter.frequency.setTargetAtTime(
+        this.weather === "mist" ? 720 : this.weather === "rain" ? 7200 : 12000,
+        this.context.currentTime,
+        this.weather === "mist" ? 1.6 : 0.8,
+      );
+    }
+    this.applyWaterNearness(time);
   }
 
   private applyWaterNearness(time = 0.45) {
     const closeness = this.waterNearness;
-    const levels = [0.002 + closeness * 0.027, 0.001 + closeness * 0.021, closeness * 0.008];
-    this.water.forEach((layer, index) => this.ramp(layer, levels[index] ?? 0, time));
+    const rainFullness = this.weather === "rain" ? 1.35 : 1;
+    const levels = [0.0015 + closeness * 0.03, 0.0006 + closeness * 0.024, closeness * 0.01];
+    this.water.forEach((layer, index) => {
+      this.ramp(layer, (levels[index] ?? 0) * rainFullness, time);
+      if (this.context) {
+        const farCutoff = index === 0 ? 430 : index === 1 ? 680 : 1200;
+        const nearCutoff = index === 0 ? 850 : index === 1 ? 2300 : 5600;
+        layer.filter.frequency.setTargetAtTime(
+          farCutoff + (nearCutoff - farCutoff) * closeness,
+          this.context.currentTime,
+          time,
+        );
+      }
+    });
   }
 
   private scheduleBubble() {
@@ -197,6 +224,16 @@ class ForestAudio {
     if (Math.abs(next - this.waterNearness) < 0.025) return;
     this.waterNearness = next;
     this.applyWaterNearness();
+  }
+
+  private duckAmbience(amount: number, holdSeconds: number) {
+    const context = this.context;
+    const ambience = this.ambience;
+    if (!context || !ambience) return;
+    const now = context.currentTime;
+    ambience.gain.cancelScheduledValues(now);
+    ambience.gain.setTargetAtTime(amount, now, 0.05);
+    ambience.gain.setTargetAtTime(1, now + holdSeconds, 0.35);
   }
 
   private noiseBurst(colour: NoiseColour, frequency: number, duration: number, volume: number, filterType: BiquadFilterType = "bandpass") {
@@ -250,10 +287,14 @@ class ForestAudio {
     this.softTone(base * 1.32, 0.11, 0.003 + this.waterNearness * 0.004, "sine", 0.07);
   }
 
-  footstep(surface: FootstepSurface) {
+  footstep(surface: FootstepSurface, pace = 0.5) {
+    const strength = 0.8 + Math.min(1, Math.max(0, pace)) * 0.35;
     if (surface === "water") {
-      this.noiseBurst("pink", 1150, 0.14, 0.014);
-      this.softTone(175, 0.16, 0.012);
+      this.noiseBurst("pink", 1150, 0.14, 0.014 * strength);
+      this.softTone(175, 0.16, 0.012 * strength);
+    } else if (surface === "wet") {
+      this.noiseBurst("pink", 820, 0.17, 0.012 * strength);
+      this.softTone(132, 0.15, 0.011 * strength);
     } else if (surface === "gravel") {
       this.noiseBurst("white", 1850, 0.085, 0.009);
       this.softTone(105, 0.1, 0.011);
@@ -264,6 +305,7 @@ class ForestAudio {
   }
 
   sniff() {
+    this.duckAmbience(0.42, 0.75);
     this.noiseBurst("pink", 920, 0.32, 0.011, "highpass");
     this.noiseBurst("brown", 480, 0.22, 0.008, "lowpass");
   }
@@ -279,6 +321,7 @@ class ForestAudio {
   }
 
   sip() {
+    this.duckAmbience(0.68, 1.25);
     this.noiseBurst("pink", 780, 0.55, 0.009);
     this.softTone(315, 0.42, 0.01);
     this.softTone(405, 0.34, 0.007, "sine", 0.24);
@@ -289,6 +332,15 @@ class ForestAudio {
     this.noiseBurst("brown", 360, 0.38, 0.018, "lowpass");
     this.noiseBurst("pink", 1150, 0.22, 0.008);
     this.softTone(88, 0.2, 0.009);
+  }
+
+  rest() {
+    this.duckAmbience(0.72, 4.6);
+    this.noiseBurst("brown", 260, 0.7, 0.015, "lowpass");
+    this.softTone(155, 0.8, 0.009, "sine", 0.08);
+    this.noiseBurst("pink", 540, 0.65, 0.004, "lowpass");
+    this.softTone(118, 1.1, 0.006, "sine", 1.7);
+    this.softTone(112, 1.2, 0.005, "sine", 3.5);
   }
 
   placement(kind: PlacementKind) {
