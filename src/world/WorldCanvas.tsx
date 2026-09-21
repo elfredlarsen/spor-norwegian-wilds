@@ -1100,6 +1100,49 @@ export function WorldCanvas() {
       }
       ctx.globalAlpha = 1;
 
+      // a quiet ring answers every touch of the ground
+      for (let index = touches.length - 1; index >= 0; index -= 1) {
+        const touch = touches[index];
+        if (!touch) continue;
+        const age = (now - touch.born) / 1000;
+        if (age > 1.6) { touches.splice(index, 1); continue; }
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, 0.34 - age * 0.21);
+        ctx.strokeStyle = "#e7e4d8";
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        ctx.ellipse(touch.x, touch.y, 8 + age * 34, 4 + age * 15, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      // walking stirs up a little pollen, seed down or snow
+      if (moving && random() < delta * 6) {
+        motes.push({
+          x: current.x + (random() - 0.5) * 16,
+          y: current.y + 6 + random() * 6,
+          vx: (random() - 0.5) * 14,
+          vy: -6 - random() * 12,
+          born: now,
+        });
+      }
+      for (let index = motes.length - 1; index >= 0; index -= 1) {
+        const mote = motes[index];
+        if (!mote) continue;
+        const age = (now - mote.born) / 1000;
+        if (age > 2.4) { motes.splice(index, 1); continue; }
+        mote.x += mote.vx * delta;
+        mote.y += mote.vy * delta;
+        mote.vy += 3 * delta;
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, 0.4 - age * 0.17);
+        ctx.fillStyle = cycle.season === "winter" ? "#eef3f5" : seasonPalette.leafHighlight ?? "#d9dcc2";
+        ctx.beginPath();
+        ctx.arc(mote.x, mote.y, 1.8, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+
       if (state.den.invitation) drawInvitation(ctx, state.den.invitation.path, now);
 
       const drawables: Array<{ y: number; draw: () => void }> = [];
