@@ -208,6 +208,31 @@ export function Hud() {
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
   const [journalBusy, setJournalBusy] = useState(false);
   const [journalError, setJournalError] = useState<string | null>(null);
+  // the controls rest out of sight until a hand comes near them
+  const [idle, setIdle] = useState(false);
+
+  useEffect(() => {
+    let timer = window.setTimeout(() => setIdle(true), 7000);
+    const wake = () => {
+      setIdle(false);
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => setIdle(true), 7000);
+    };
+    window.addEventListener("pointermove", wake);
+    window.addEventListener("pointerdown", wake);
+    window.addEventListener("keydown", wake);
+    window.addEventListener("touchstart", wake);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener("pointermove", wake);
+      window.removeEventListener("pointerdown", wake);
+      window.removeEventListener("keydown", wake);
+      window.removeEventListener("touchstart", wake);
+    };
+  }, []);
+
+  const quiet = `transition-opacity duration-1000 ${idle ? "opacity-20" : "opacity-100"}`;
+
 
   useEffect(() => {
     try {
