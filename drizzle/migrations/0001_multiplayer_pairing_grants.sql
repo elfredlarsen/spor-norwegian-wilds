@@ -1,0 +1,10 @@
+GRANT SELECT, INSERT, UPDATE ON public.pairings TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON public.world_state TO authenticated;
+GRANT SELECT, INSERT ON public.placements TO authenticated;
+GRANT SELECT, INSERT ON public.footprints TO authenticated;
+GRANT ALL ON public.pairings TO service_role;
+GRANT ALL ON public.world_state TO service_role;
+GRANT ALL ON public.placements TO service_role;
+GRANT ALL ON public.footprints TO service_role;
+GRANT USAGE, SELECT ON SEQUENCE public.footprints_id_seq TO authenticated;
+GRANT EXECUTE ON FUNCTION public.is_pairing_member(uuid) TO authenticated;
