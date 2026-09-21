@@ -250,7 +250,7 @@ function Player() {
         bloomClock.current = 0;
         const index = blooms.length;
         const angle = index * 2.399;
-        const radius = 0.75 + Math.min(index, 28) * 0.045;
+        const radius = 1.05 + Math.min(index, 28) * 0.075;
         setBlooms((previous) => [...previous.slice(-47), { id: Date.now() + index, x: object.position.x + Math.cos(angle) * radius, z: object.position.z + Math.sin(angle) * radius }]);
       }
     }
@@ -266,7 +266,7 @@ function Player() {
   const action = useGameStore((state) => state.action);
   return <>
     {trails.map((trail) => <mesh key={trail.id} position={[trail.x, groundHeight(trail.x, trail.z) + 0.025, trail.z]} rotation={[-Math.PI / 2, 0, trail.yaw]}><circleGeometry args={[0.34, 10]} /><meshStandardMaterial color="#4b513e" transparent opacity={0.45} roughness={1} depthWrite={false} /></mesh>)}
-    {blooms.map((bloom, index) => <group key={bloom.id} position={[bloom.x, groundHeight(bloom.x, bloom.z) + 0.04, bloom.z]} scale={Math.min(1, 0.45 + index * 0.04)}><mesh scale={[0.32, 0.08, 0.32]}><sphereGeometry args={[1, 8, 5]} /><meshStandardMaterial color="#4f7a43" roughness={1} /></mesh>{index % 3 === 0 && <mesh position={[0.12, 0.13, 0]}><sphereGeometry args={[0.055, 6, 5]} /><meshStandardMaterial color="#d9d4b6" /></mesh>}</group>)}
+    {blooms.map((bloom, index) => <group key={bloom.id} position={[bloom.x, groundHeight(bloom.x, bloom.z) + 0.07, bloom.z]} scale={Math.min(1.25, 0.7 + index * 0.05)}><mesh scale={[0.52, 0.1, 0.52]}><sphereGeometry args={[1, 8, 5]} /><meshStandardMaterial color="#5f914b" roughness={1} /></mesh>{index % 3 === 0 && <mesh position={[0.18, 0.17, 0]}><sphereGeometry args={[0.075, 6, 5]} /><meshStandardMaterial color="#e6dfbd" /></mesh>}</group>)}
     <group ref={player}><Fox action={action} /></group>
   </>;
 }
