@@ -47,8 +47,7 @@ export function useMultiplayerSync(): MultiplayerStatus {
         console.log('MP pairing', JSON.stringify(pairing), 'stale', stale());
         if (stale()) return;
         if (!pairing) {
-          setStatus({ kind: "unpaired" });
-          console.log("MP set unpaired");
+          try { setStatus({ kind: "unpaired" }); console.log("MP set unpaired ok"); } catch (e) { console.log("MP set threw", String(e)); }
           return;
         }
         if (!pairing.paired) {
@@ -67,7 +66,8 @@ export function useMultiplayerSync(): MultiplayerStatus {
         setParticipant(pairing.role);
         setStatus({ kind: "paired", role: pairing.role });
       })
-      .catch(() => {
+      .catch((e) => {
+        console.log("MP catch", String(e));
         if (!stale()) setStatus({ kind: "unpaired" });
       });
   }, [userId, authLoading, setParticipant]);
