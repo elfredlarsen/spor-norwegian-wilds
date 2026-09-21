@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { audio } from "./audio";
 import { worldEngine } from "./engine";
 import { useUiStore } from "./ui-store";
-import type { Feature, ParticipantId, Placement } from "./types";
+import type { Feature, ParticipantId, Placement, WeatherKind } from "./types";
 import {
   FEATURES,
   WORLD_HEIGHT,
@@ -17,6 +17,21 @@ import {
 
 const WALK_SPEED = 128;
 const WATER_SPEED = 74;
+
+type Bird = { x: number; y: number; homeX: number; homeY: number; vx: number; vy: number; airborne: boolean; kind: "tit" | "bullfinch" };
+type Ripple = { x: number; y: number; born: number; strength: number };
+type ScentWisp = { x: number; y: number; born: number; phase: number };
+type Puddle = { x: number; y: number; size: number; wetness: number; lastSplash: number };
+
+function seeded(seed: number) {
+  let value = seed >>> 0;
+  return () => {
+    value = (value + 0x6d2b79f5) >>> 0;
+    let mixed = Math.imul(value ^ (value >>> 15), 1 | value);
+    mixed = (mixed + Math.imul(mixed ^ (mixed >>> 7), 61 | mixed)) ^ mixed;
+    return ((mixed ^ (mixed >>> 14)) >>> 0) / 4294967296;
+  };
+}
 
 type Keys = Record<string, boolean>;
 
@@ -304,6 +319,54 @@ function drawPlacement(ctx: CanvasRenderingContext2D, item: Placement, time: num
     ctx.arc(0, -26, 6, Math.PI, 0);
     ctx.stroke();
   }
+  if (item.kind === "berry") {
+    const pulse = 0.82 + Math.sin(time * 0.0025 + item.variant) * 0.18;
+    const glow = ctx.createRadialGradient(0, 0, 1, 0, 0, 28);
+    glow.addColorStop(0, `rgba(220, 116, 118, ${0.38 * pulse})`);
+    glow.addColorStop(1, "rgba(220, 116, 118, 0)");
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(0, 0, 28, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#b9434d";
+    for (let berry = 0; berry < 4; berry += 1) {
+      const a = berry * 1.7 + item.variant;
+      ctx.beginPath();
+      ctx.arc(Math.cos(a) * 5, Math.sin(a) * 4, 3.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.strokeStyle = "#82935e";
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(-1, -2);
+    ctx.quadraticCurveTo(2, -9, 8, -10);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawBird(ctx: CanvasRenderingContext2D, bird: Bird, time: number) {
+  ctx.save();
+  ctx.translate(bird.x, bird.y);
+  const flap = bird.airborne ? Math.sin(time * 0.025) * 6 : 1;
+  ctx.fillStyle = bird.kind === "bullfinch" ? "#bd665c" : "#d7d0ba";
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 5.5, 3.7, 0.05, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#282d29";
+  ctx.beginPath();
+  ctx.arc(4, -1, 2.7, 0, Math.PI * 2);
+  ctx.fill();
+  if (bird.airborne) {
+    ctx.strokeStyle = bird.kind === "bullfinch" ? "#80534e" : "#7a786d";
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    ctx.moveTo(-1, 0);
+    ctx.quadraticCurveTo(-7, -flap, -12, -1);
+    ctx.moveTo(-1, 1);
+    ctx.quadraticCurveTo(-7, flap, -12, 2);
+    ctx.stroke();
+  }
   ctx.restore();
 }
 
@@ -432,6 +495,35 @@ export function WorldCanvas() {
     let cameraX = 0;
     let cameraY = 0;
     let cameraReady = false;
+    let actionUntil = 0;
+    let actionKind: "sniff" | "drink" | "dig" | null = null;
+    let lastSenseNonce = 0;
+    let lastWeather: WeatherKind = worldEngine.state.weather.kind;
+    const random = seeded(7139);
+    const birches = FEATURES.filter((feature) => feature.kind === "birch");
+    const birds: Bird[] = birches.slice(0, 13).map((tree, index) => ({
+      x: tree.x + (random() - 0.5) * 24,
+      y: tree.y - 18 - random() * 18,
+      homeX: tree.x + (random() - 0.5) * 24,
+      homeY: tree.y - 18 - random() * 18,
+      vx: 0,
+      vy: 0,
+      airborne: false,
+      kind: index % 4 === 0 ? "bullfinch" : "tit",
+    }));
+    for (const bird of birds) {
+      bird.homeX = bird.x;
+      bird.homeY = bird.y;
+    }
+    const puddles: Puddle[] = Array.from({ length: 16 }, (_, index) => {
+      const y = 100 + random() * (WORLD_HEIGHT - 200);
+      const side = index % 2 ? 1 : -1;
+      return { x: streamCenter(y) + side * (streamHalfWidth(y) + 54 + random() * 160), y, size: 18 + random() * 20, wetness: 0, lastSplash: 0 };
+    });
+    const ripples: Ripple[] = [];
+    const scents: ScentWisp[] = [];
+    const moths = Array.from({ length: 32 }, () => ({ x: random() * WORLD_WIDTH, y: random() * WORLD_HEIGHT, phase: random() * Math.PI * 2 }));
+    const leaves = Array.from({ length: 34 }, () => { const y = random() * WORLD_HEIGHT; return { x: streamCenter(y) + (random() - 0.5) * streamHalfWidth(y), y, phase: random() * Math.PI * 2 }; });
 
     const rainDrops = Array.from({ length: 220 }, () => ({
       x: Math.random(),
@@ -520,9 +612,45 @@ export function WorldCanvas() {
       }
 
       const depth = waterDepth(position.x, position.y);
+      const nearWaterBank = Math.abs(position.x - streamCenter(position.y)) < streamHalfWidth(position.y) + 54;
+      if (ui.nearWater !== nearWaterBank) ui.setNearWater(nearWaterBank);
+
+      if (ui.senseRequest && ui.senseRequest.nonce !== lastSenseNonce) {
+        lastSenseNonce = ui.senseRequest.nonce;
+        actionKind = ui.senseRequest.kind;
+        actionUntil = now + (actionKind === "sniff" ? 4200 : 2400);
+        walkTarget = null;
+        audio.init();
+        if (actionKind === "sniff") {
+          const targets = worldEngine.state.placements.filter((item) => item.kind === "berry" || item.kind === "lantern");
+          const target = targets.sort((a, b) => Math.hypot(a.x - position.x, a.y - position.y) - Math.hypot(b.x - position.x, b.y - position.y))[0];
+          const tx = target?.x ?? streamCenter(position.y + 220);
+          const ty = target?.y ?? position.y + 220;
+          for (let index = 1; index <= 12; index += 1) scents.push({ x: position.x + (tx - position.x) * index / 13, y: position.y + (ty - position.y) * index / 13, born: now, phase: random() * 6 });
+          ui.setDiscovery(target ? "A quiet scent lingers between the trees." : "Cool water and bilberry drift on the air.");
+          audio.chime(440);
+        } else if (actionKind === "drink") {
+          if (nearWaterBank) {
+            ripples.push({ x: streamCenter(position.y), y: position.y, born: now, strength: 1.3 });
+            ui.setDiscovery("The fox drinks. Rings travel softly across the stream.");
+            audio.sip();
+          } else {
+            ui.setDiscovery("The fox listens for running water.");
+          }
+        } else {
+          const found = random();
+          const foundKind = found > 0.66 ? "a smooth quartz pebble" : found > 0.32 ? "a small pinecone" : "a cluster of glowing berries";
+          ui.setDiscovery(`Beneath the moss: ${foundKind}.`);
+          audio.dig();
+          if (found <= 0.32) worldEngine.place("berry", position.x + 20, position.y + 10, participant);
+          if (found > 0.66) worldEngine.place("stone", position.x + 18, position.y + 12, participant);
+        }
+        ui.clearSenseRequest();
+      }
       const speed = WALK_SPEED - depth * (WALK_SPEED - WATER_SPEED);
-      const targetVelocityX = inputX * speed;
-      const targetVelocityY = inputY * speed;
+      const stillSensing = now < actionUntil;
+      const targetVelocityX = stillSensing ? 0 : inputX * speed;
+      const targetVelocityY = stillSensing ? 0 : inputY * speed;
       const smoothing = 1 - Math.exp(-6 * delta);
       velocityX += (targetVelocityX - velocityX) * smoothing;
       velocityY += (targetVelocityY - velocityY) * smoothing;
@@ -601,6 +729,62 @@ export function WorldCanvas() {
 
       const state = worldEngine.state;
       const now2 = Date.now();
+      const weather = state.weather.kind;
+      if (weather !== lastWeather) lastWeather = weather;
+
+      for (const puddle of puddles) {
+        puddle.wetness += ((weather === "rain" ? 1 : 0) - puddle.wetness) * (1 - Math.exp(-0.35 * delta));
+        if (puddle.wetness < 0.03) continue;
+        ctx.save();
+        ctx.globalAlpha = puddle.wetness * 0.5;
+        ctx.fillStyle = "#718994";
+        ctx.beginPath();
+        ctx.ellipse(puddle.x, puddle.y, puddle.size, puddle.size * 0.38, 0.2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+        if (moving && Math.hypot(current.x - puddle.x, current.y - puddle.y) < puddle.size && now - puddle.lastSplash > 900) {
+          puddle.lastSplash = now;
+          ripples.push({ x: puddle.x, y: puddle.y, born: now, strength: 0.75 });
+          audio.splash();
+        }
+      }
+
+      for (const leaf of leaves) {
+        leaf.y += delta * 8;
+        if (leaf.y > WORLD_HEIGHT) leaf.y = 0;
+        leaf.x = streamCenter(leaf.y) + Math.sin(now * 0.0005 + leaf.phase) * streamHalfWidth(leaf.y) * 0.55;
+        if (leaf.x < cameraX - 20 || leaf.x > cameraX + viewWidth + 20 || leaf.y < cameraY - 20 || leaf.y > cameraY + viewHeight + 20) continue;
+        ctx.save();
+        ctx.translate(leaf.x, leaf.y);
+        ctx.rotate(Math.sin(now * 0.001 + leaf.phase));
+        ctx.fillStyle = "#b88755";
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 5, 2.5, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+
+      if (weather === "rain" && random() < delta * 1.5) {
+        const y = cameraY + random() * viewHeight;
+        ripples.push({ x: streamCenter(y) + (random() - 0.5) * streamHalfWidth(y), y, born: now, strength: 0.7 });
+      }
+      for (let index = ripples.length - 1; index >= 0; index -= 1) {
+        const ripple = ripples[index];
+        if (!ripple) continue;
+        const age = (now - ripple.born) / 1000;
+        if (age > 2.2) { ripples.splice(index, 1); continue; }
+        ctx.strokeStyle = `rgba(215, 232, 230, ${Math.max(0, 0.55 - age * 0.25)})`;
+        ctx.lineWidth = 1.3;
+        ctx.beginPath();
+        ctx.ellipse(ripple.x, ripple.y, age * 28 * ripple.strength, age * 10 * ripple.strength, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        if (ripple.strength > 1 && age < 0.35) {
+          ctx.fillStyle = "#71828a";
+          ctx.beginPath();
+          ctx.arc(ripple.x, ripple.y - Math.sin(age / 0.35 * Math.PI) * 18, 4, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
 
       // trails
       for (const print of state.trail) {
@@ -637,6 +821,28 @@ export function WorldCanvas() {
         if (item.y < cameraY - 120 || item.y > cameraY + viewHeight + 120) continue;
         drawables.push({ y: item.y, draw: () => drawPlacement(ctx, item, now2) });
       }
+
+      for (const bird of birds) {
+        const distance = Math.hypot(current.x - bird.x, current.y - bird.y);
+        if (!bird.airborne && distance < 112 && moving) {
+          bird.airborne = true;
+          bird.vx = (bird.x - current.x) * 0.55;
+          bird.vy = -70 - random() * 40;
+          audio.flutter();
+        }
+        if (bird.airborne) {
+          bird.x += bird.vx * delta;
+          bird.y += bird.vy * delta;
+          bird.vx += (bird.homeX - bird.x) * delta * 0.32;
+          bird.vy += (bird.homeY - bird.y) * delta * 0.32;
+          if (Math.hypot(bird.homeX - bird.x, bird.homeY - bird.y) < 9 && distance > 150) {
+            bird.airborne = false;
+            bird.x = bird.homeX;
+            bird.y = bird.homeY;
+          }
+        }
+        drawables.push({ y: bird.y, draw: () => drawBird(ctx, bird, now) });
+      }
       const foxTint = participant === "child" ? "#c9743a" : "#b75c32";
       drawables.push({
         y: current.y,
@@ -657,10 +863,38 @@ export function WorldCanvas() {
       drawables.sort((a, b) => a.y - b.y);
       for (const drawable of drawables) drawable.draw();
 
+      for (let index = scents.length - 1; index >= 0; index -= 1) {
+        const scent = scents[index];
+        if (!scent) continue;
+        const age = (now - scent.born) / 1000;
+        if (age > 4.2) { scents.splice(index, 1); continue; }
+        ctx.save();
+        ctx.globalAlpha = Math.sin(Math.min(1, age) * Math.PI) * Math.max(0, 1 - age / 4.2) * 0.45;
+        ctx.fillStyle = "#dbe3c4";
+        ctx.beginPath();
+        ctx.arc(scent.x + Math.sin(now * 0.002 + scent.phase) * 10, scent.y - age * 7, 4.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+
+      if (weather === "mist") {
+        for (const moth of moths) {
+          const mx = moth.x + Math.sin(now * 0.0007 + moth.phase) * 26;
+          const my = moth.y + Math.cos(now * 0.0009 + moth.phase) * 18;
+          if (mx < cameraX || mx > cameraX + viewWidth || my < cameraY || my > cameraY + viewHeight) continue;
+          const glow = ctx.createRadialGradient(mx, my, 0, mx, my, 13);
+          glow.addColorStop(0, "rgba(238, 220, 145, 0.65)");
+          glow.addColorStop(1, "rgba(238, 220, 145, 0)");
+          ctx.fillStyle = glow;
+          ctx.beginPath();
+          ctx.arc(mx, my, 13, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
       ctx.restore();
 
       // ---- weather ----
-      const weather = state.weather.kind;
       if (weather === "rain") {
         ctx.save();
         ctx.strokeStyle = "rgba(210, 226, 232, 0.4)";

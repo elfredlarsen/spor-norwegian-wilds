@@ -6,3 +6,7 @@
 - [x] Persistence + companion perspective switcher
 - [x] Nature notes and calm audio
 - [x] Verify desktop and mobile in browser
+- [ ] Living wildlife and weather reactions
+- [ ] Contextual sniff, drink, and gentle digging actions
+- [ ] Glowing berry trails and responsive cairns
+- [ ] Verify new interactions on desktop and mobile
