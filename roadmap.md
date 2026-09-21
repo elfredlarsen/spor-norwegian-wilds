@@ -23,3 +23,4 @@
 - [ ] Picture-book aesthetic in three layers (background, middle, foreground)
 - [ ] Real day cycle and weather progression
 - [ ] Seasonal change affecting vegetation, finds and animal behaviour
+- [x] Automatic saving of finds, discoveries and world changes (already in the engine)
