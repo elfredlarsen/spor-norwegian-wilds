@@ -18,4 +18,5 @@
 - [ ] Den: opening, entrance, muffled weather audio and sheltered interior
 - [ ] Den: bedding materials, keepsake niches, invitation trail
 - [ ] Rename participants to Fox 1 / Fox 2
+- [ ] Wordless, icon-based navigation usable without reading
 - [ ] Verify the den on desktop and mobile
