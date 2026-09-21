@@ -130,7 +130,10 @@ export function Hud() {
     const sync = () => setWeather(worldEngine.state.weather.kind);
     worldEngine.load();
     sync();
-    return worldEngine.subscribe(sync);
+    const unsubscribe = worldEngine.subscribe(sync);
+    return () => {
+      unsubscribe();
+    };
   }, [setWeather]);
 
   useEffect(() => {
