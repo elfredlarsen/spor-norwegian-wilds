@@ -166,7 +166,8 @@ function paintGround(canvas: HTMLCanvasElement) {
   }
 }
 
-function drawTree(ctx: CanvasRenderingContext2D, feature: Feature, time: number) {
+function drawTree(ctx: CanvasRenderingContext2D, feature: Feature, time: number, season: Season) {
+  const palette = SEASON_PALETTE[season];
   const sway = Math.sin(time * 0.0006 + feature.x * 0.01) * 3 * feature.scale;
   ctx.save();
   ctx.translate(feature.x, feature.y);
