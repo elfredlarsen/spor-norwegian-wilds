@@ -83,6 +83,6 @@ export type Feature = {
 };
 
 export const PARTICIPANTS: Record<ParticipantId, { label: string; hue: string }> = {
-  elder: { label: "Exploring as parent", hue: "#c4622d" },
-  child: { label: "Exploring as child", hue: "#d89a4a" },
+  elder: { label: "Fox 1", hue: "#c4622d" },
+  child: { label: "Fox 2", hue: "#d89a4a" },
 };
