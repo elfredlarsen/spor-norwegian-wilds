@@ -1,6 +1,6 @@
 import { Environment, Lightformer } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
-import { useMemo, useRef, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { forestAudio } from "./audio";
 import { useKeyboard } from "./use-keyboard";
@@ -81,14 +81,15 @@ function Pine({ position, scale, phase }: { position: [number, number, number]; 
   });
   return (
     <group position={position} scale={scale}>
-      <mesh castShadow position-y={3.1}>
-        <cylinderGeometry args={[0.24, 0.38, 6.2, 7]} />
-        <meshStandardMaterial color="#75543b" roughness={1} />
+      <mesh castShadow position-y={3.35}>
+        <cylinderGeometry args={[0.2, 0.43, 6.7, 8]} />
+        <meshStandardMaterial color="#74523d" roughness={1} flatShading />
       </mesh>
-      <group ref={crown} position-y={4.1}>
-        <mesh castShadow position-y={2.3}><coneGeometry args={[1.65, 3.2, 8]} /><meshStandardMaterial color="#24463a" roughness={0.95} /></mesh>
-        <mesh castShadow position-y={1.05}><coneGeometry args={[2.05, 3.4, 8]} /><meshStandardMaterial color="#315640" roughness={0.96} /></mesh>
-        <mesh castShadow position-y={-0.25}><coneGeometry args={[2.35, 3.2, 8]} /><meshStandardMaterial color="#3e6349" roughness={0.98} /></mesh>
+      <group ref={crown} position-y={4.35}>
+        <mesh castShadow position={[-0.1, 2.55, 0]}><coneGeometry args={[1.05, 2.45, 7]} /><meshStandardMaterial color="#29483a" roughness={0.98} flatShading /></mesh>
+        <mesh castShadow position={[0.25, 1.35, -0.1]}><coneGeometry args={[1.55, 2.65, 7]} /><meshStandardMaterial color="#35563e" roughness={0.98} flatShading /></mesh>
+        <mesh castShadow position={[-0.28, 0.2, 0.12]}><coneGeometry args={[1.9, 2.55, 7]} /><meshStandardMaterial color="#466349" roughness={1} flatShading /></mesh>
+        {[0.2, 1.25, 2.25].map((height, index) => <mesh key={height} position={[index % 2 ? -0.15 : 0.2, height, 0]} rotation-z={index % 2 ? -0.16 : 0.16}><cylinderGeometry args={[0.055, 0.075, 3.7 - index * 0.5, 6]} /><meshStandardMaterial color="#604634" roughness={1} /></mesh>)}
       </group>
     </group>
   );
@@ -113,25 +114,99 @@ function Birch({ position, scale, phase }: { position: [number, number, number];
 
 function Boulder({ position, scale, rotation }: { position: [number, number, number]; scale: number; rotation: number }) {
   return (
-    <mesh position={position} scale={[scale * 1.3, scale * 0.8, scale]} rotation={[0.1, rotation, -0.08]} castShadow receiveShadow>
-      <dodecahedronGeometry args={[1, 1]} />
-      <meshStandardMaterial color="#85887f" roughness={0.88} />
-    </mesh>
+    <group position={position} rotation={[0.1, rotation, -0.08]}>
+      <mesh scale={[scale * 1.45, scale * 0.74, scale]} castShadow receiveShadow>
+        <dodecahedronGeometry args={[1, 1]} />
+        <meshStandardMaterial color="#777d7b" roughness={0.98} flatShading />
+      </mesh>
+      <mesh position={[scale * 0.18, scale * 0.66, scale * 0.04]} scale={[scale * 0.58, scale * 0.08, scale * 0.42]}>
+        <sphereGeometry args={[1, 8, 5]} />
+        <meshStandardMaterial color="#708255" roughness={1} />
+      </mesh>
+    </group>
   );
 }
 
 function Understory() {
-  const shrubs = useMemo(() => Array.from({ length: 95 }, (_, index) => {
+  const leaves = useRef<THREE.InstancedMesh>(null);
+  const berries = useRef<THREE.InstancedMesh>(null);
+  const stones = useRef<THREE.InstancedMesh>(null);
+  const shrubs = useMemo(() => Array.from({ length: 150 }, (_, index) => {
     const radius = 6 + seeded(index, 12) * 32;
     const angle = seeded(index, 13) * Math.PI * 2;
-    return { x: Math.cos(angle) * radius, z: Math.sin(angle) * radius, scale: 0.35 + seeded(index, 14) * 0.55, berry: index % 4 === 0 };
+    return { x: Math.cos(angle) * radius, z: Math.sin(angle) * radius, scale: 0.3 + seeded(index, 14) * 0.55 };
   }), []);
-  return <>{shrubs.map((shrub, index) => (
-    <group key={index} position={[shrub.x, groundHeight(shrub.x, shrub.z) + 0.12, shrub.z]} scale={shrub.scale}>
-      {[0, 1, 2].map((leaf) => <mesh key={leaf} position={[(leaf - 1) * 0.3, leaf % 2 * 0.18, (leaf % 2 - 0.5) * 0.25]} rotation={[0, leaf * 2.1, 0]}><octahedronGeometry args={[0.38, 0]} /><meshStandardMaterial color={leaf === 1 ? "#526a3f" : "#3f5938"} roughness={1} /></mesh>)}
-      {shrub.berry && <mesh position={[0.22, 0.3, 0.24]}><sphereGeometry args={[0.08, 6, 5]} /><meshStandardMaterial color="#40527c" roughness={0.8} /></mesh>}
-    </group>
-  ))}</>;
+  useLayoutEffect(() => {
+    const dummy = new THREE.Object3D();
+    shrubs.forEach((shrub, index) => {
+      const leaf = index % 3;
+      dummy.position.set(shrub.x + (leaf - 1) * 0.18, groundHeight(shrub.x, shrub.z) + 0.18, shrub.z + (leaf % 2) * 0.14);
+      dummy.rotation.set(0.2, seeded(index, 41) * Math.PI, -0.15 + seeded(index, 42) * 0.3);
+      dummy.scale.set(shrub.scale * 0.58, shrub.scale, shrub.scale * 0.42);
+      dummy.updateMatrix();
+      leaves.current?.setMatrixAt(index, dummy.matrix);
+    });
+    Array.from({ length: 38 }, (_, index) => {
+      const shrub = shrubs[index * 3];
+      if (!shrub) return;
+      dummy.position.set(shrub.x + 0.12, groundHeight(shrub.x, shrub.z) + 0.36, shrub.z - 0.08);
+      dummy.scale.setScalar(0.065 + seeded(index, 45) * 0.035);
+      dummy.updateMatrix();
+      berries.current?.setMatrixAt(index, dummy.matrix);
+    });
+    Array.from({ length: 65 }, (_, index) => {
+      const radius = 5 + seeded(index, 48) * 31;
+      const angle = seeded(index, 49) * Math.PI * 2;
+      const x = Math.cos(angle) * radius;
+      const z = Math.sin(angle) * radius;
+      dummy.position.set(x, groundHeight(x, z) + 0.05, z);
+      dummy.rotation.set(seeded(index, 50) * 0.3, angle, seeded(index, 51) * 0.25);
+      dummy.scale.set(0.12 + seeded(index, 52) * 0.3, 0.05 + seeded(index, 53) * 0.13, 0.15 + seeded(index, 54) * 0.34);
+      dummy.updateMatrix();
+      stones.current?.setMatrixAt(index, dummy.matrix);
+    });
+    if (leaves.current) leaves.current.instanceMatrix.needsUpdate = true;
+    if (berries.current) berries.current.instanceMatrix.needsUpdate = true;
+    if (stones.current) stones.current.instanceMatrix.needsUpdate = true;
+  }, [shrubs]);
+  return <>
+    <instancedMesh ref={leaves} args={[undefined, undefined, shrubs.length]} castShadow><octahedronGeometry args={[0.42, 0]} /><meshStandardMaterial color="#4d683f" roughness={1} flatShading /></instancedMesh>
+    <instancedMesh ref={berries} args={[undefined, undefined, 38]}><sphereGeometry args={[1, 6, 5]} /><meshStandardMaterial color="#35486b" roughness={0.82} /></instancedMesh>
+    <instancedMesh ref={stones} args={[undefined, undefined, 65]} receiveShadow><dodecahedronGeometry args={[1, 0]} /><meshStandardMaterial color="#858982" roughness={1} flatShading /></instancedMesh>
+  </>;
+}
+
+function ValleyBackdrop() {
+  const ridges = [
+    { z: -45, y: 2, color: "#7d8988", points: [[-48, 3], [-37, 12], [-27, 7], [-17, 16], [-6, 8], [4, 15], [15, 7], [28, 13], [42, 4]] },
+    { z: -58, y: 5, color: "#91a09f", points: [[-50, 5], [-39, 18], [-30, 10], [-20, 22], [-8, 13], [2, 25], [13, 15], [24, 23], [39, 8], [50, 12]] },
+  ];
+  return <>
+    {ridges.map((ridge) => {
+      const shape = new THREE.Shape();
+      ridge.points.forEach(([x, y], index) => index === 0 ? shape.moveTo(x, 0) : shape.lineTo(x, y));
+      shape.lineTo(50, -8);
+      shape.lineTo(-50, -8);
+      shape.closePath();
+      return <mesh key={ridge.z} position={[0, ridge.y, ridge.z]}>
+        <shapeGeometry args={[shape]} />
+        <meshStandardMaterial color={ridge.color} roughness={1} fog />
+      </mesh>;
+    })}
+  </>;
+}
+
+function Stream() {
+  const curve = useMemo(() => new THREE.CatmullRomCurve3([
+    new THREE.Vector3(-3, groundHeight(-3, -38) + 0.04, -38),
+    new THREE.Vector3(4, groundHeight(4, -25) + 0.04, -25),
+    new THREE.Vector3(-5, groundHeight(-5, -13) + 0.04, -13),
+    new THREE.Vector3(-13, groundHeight(-13, -2) + 0.04, -2),
+  ]), []);
+  return <mesh position-y={0.02} receiveShadow>
+    <tubeGeometry args={[curve, 64, 0.72, 8, false]} />
+    <meshPhysicalMaterial color="#75959a" roughness={0.25} metalness={0.05} transparent opacity={0.78} />
+  </mesh>;
 }
 
 function Forest() {
@@ -155,6 +230,8 @@ function Forest() {
       : <Pine key={index} position={[tree.x, groundHeight(tree.x, tree.z), tree.z]} scale={tree.scale} phase={tree.phase} />)}
     {rocks.map((rock, index) => <Boulder key={index} position={[rock.x, groundHeight(rock.x, rock.z) + rock.scale * 0.35, rock.z]} scale={rock.scale} rotation={rock.rotation} />)}
     <Understory />
+    <Stream />
+    <ValleyBackdrop />
   </>;
 }
 
@@ -207,29 +284,30 @@ function Fox({ action, turn }: { action: FoxAction; turn: React.RefObject<number
       ear.rotation.z += ((index ? -0.12 : 0.12) + twitch - ear.rotation.z) * (1 - Math.exp(-12 * dt));
     });
   });
-  const red = "#b9512d";
+  const red = "#b75c32";
   const dark = "#252520";
-  const cream = "#eee2c8";
+  const cream = "#eadfc7";
   return (
     <group ref={body} position-y={0.74}>
       <group ref={spine}>
-        <mesh castShadow scale={[0.5, 0.48, 1.22]}><sphereGeometry args={[0.72, 14, 9]} /><meshStandardMaterial color={red} roughness={0.9} flatShading /></mesh>
-        <mesh position={[0, 0.04, 0.54]} castShadow scale={[0.54, 0.54, 0.7]}><sphereGeometry args={[0.68, 12, 8]} /><meshStandardMaterial color="#9e4127" roughness={0.92} flatShading /></mesh>
+        <mesh castShadow scale={[0.48, 0.46, 1.32]}><sphereGeometry args={[0.72, 16, 10]} /><meshStandardMaterial color={red} roughness={0.94} flatShading /></mesh>
+        <mesh position={[0, 0.05, 0.61]} castShadow scale={[0.5, 0.49, 0.78]}><sphereGeometry args={[0.68, 14, 9]} /><meshStandardMaterial color="#a6492c" roughness={0.95} flatShading /></mesh>
         <mesh position={[0, -0.29, -0.25]} scale={[0.35, 0.15, 0.78]}><sphereGeometry args={[0.72, 12, 7]} /><meshStandardMaterial color={cream} roughness={1} flatShading /></mesh>
-        <mesh position={[0, 0.1, -0.76]} rotation-x={-0.16} scale={[0.42, 0.62, 0.48]}><sphereGeometry args={[0.68, 12, 8]} /><meshStandardMaterial color={cream} roughness={1} flatShading /></mesh>
+        <mesh position={[0, 0.08, -0.79]} rotation-x={-0.16} scale={[0.44, 0.69, 0.5]}><sphereGeometry args={[0.68, 12, 8]} /><meshStandardMaterial color={cream} roughness={1} flatShading /></mesh>
+        {[-1, 1].map((side) => <mesh key={side} position={[side * 0.27, 0.04, -0.7]} rotation={[0, 0, side * 0.22]} scale={[0.18, 0.42, 0.24]}><coneGeometry args={[0.42, 1, 7]} /><meshStandardMaterial color={cream} roughness={1} flatShading /></mesh>)}
       </group>
       <group ref={head} position={[0, 0.31, -1.05]}>
-        <mesh castShadow rotation-x={-0.08} scale={[0.49, 0.54, 0.58]}><octahedronGeometry args={[0.72, 2]} /><meshStandardMaterial color={red} roughness={0.88} flatShading /></mesh>
-        <mesh position={[0, -0.1, -0.62]} rotation-x={Math.PI / 2} scale={[1, 1, 1.2]}><coneGeometry args={[0.25, 0.72, 8]} /><meshStandardMaterial color="#d26b3e" roughness={0.9} flatShading /></mesh>
+        <mesh castShadow rotation-x={-0.06} scale={[0.5, 0.56, 0.62]}><octahedronGeometry args={[0.72, 2]} /><meshStandardMaterial color={red} roughness={0.9} flatShading /></mesh>
+        <mesh position={[0, -0.1, -0.66]} rotation-x={Math.PI / 2} scale={[1, 0.86, 1.3]}><coneGeometry args={[0.26, 0.78, 8]} /><meshStandardMaterial color="#d07949" roughness={0.94} flatShading /></mesh>
         <mesh position={[0, -0.11, -1.02]} scale={[0.11, 0.085, 0.1]}><sphereGeometry args={[1, 8, 6]} /><meshStandardMaterial color={dark} roughness={0.72} /></mesh>
         {[-1, 1].map((side, index) => <group ref={(node) => { ears.current[index] = node; }} key={side} position={[side * 0.31, 0.48, -0.02]} rotation-z={side * -0.12}><mesh castShadow><coneGeometry args={[0.19, 0.62, 7]} /><meshStandardMaterial color={dark} roughness={0.95} flatShading /></mesh><mesh position={[0, -0.055, -0.025]} scale={[0.62, 0.76, 0.64]}><coneGeometry args={[0.19, 0.58, 7]} /><meshStandardMaterial color="#c57970" roughness={1} flatShading /></mesh></group>)}
         {[-1, 1].map((side) => <mesh key={side} position={[side * 0.225, 0.105, -0.49]} rotation-z={side * 0.08} scale={[0.075, 0.038, 0.028]}><sphereGeometry args={[1, 8, 5]} /><meshStandardMaterial color="#111714" roughness={0.42} /></mesh>)}
-        {[-1, 1].map((side) => <mesh key={side} position={[side * 0.31, -0.13, -0.43]} rotation-z={side * 0.28} scale={[0.28, 0.23, 0.34]}><sphereGeometry args={[0.72, 10, 7]} /><meshStandardMaterial color={cream} roughness={1} flatShading /></mesh>)}
+        {[-1, 1].map((side) => <mesh key={side} position={[side * 0.3, -0.13, -0.46]} rotation-z={side * 0.28} scale={[0.3, 0.24, 0.38]}><sphereGeometry args={[0.72, 10, 7]} /><meshStandardMaterial color={cream} roughness={1} flatShading /></mesh>)}
       </group>
       <group ref={tail} position={[0, 0.16, 0.82]} rotation={[0.18, -0.42, 0]}>
-        <mesh position={[0, 0.02, 0.48]} rotation-x={Math.PI / 2} castShadow scale={[0.78, 1, 0.78]}><capsuleGeometry args={[0.28, 0.5, 5, 9]} /><meshStandardMaterial color="#a94529" roughness={0.94} flatShading /></mesh>
-        <mesh position={[0, 0.01, 1.08]} rotation-x={Math.PI / 2} castShadow scale={[1.05, 1, 1.05]}><capsuleGeometry args={[0.31, 0.62, 5, 9]} /><meshStandardMaterial color={red} roughness={0.94} flatShading /></mesh>
-        <mesh position={[0, 0, 1.7]} rotation-x={Math.PI / 2} castShadow scale={[0.78, 1, 0.78]}><capsuleGeometry args={[0.28, 0.48, 5, 9]} /><meshStandardMaterial color={cream} roughness={1} flatShading /></mesh>
+        <mesh position={[0, 0.02, 0.48]} rotation-x={Math.PI / 2} castShadow scale={[0.82, 1, 0.82]}><capsuleGeometry args={[0.29, 0.52, 5, 10]} /><meshStandardMaterial color="#a94529" roughness={0.96} flatShading /></mesh>
+        <mesh position={[0, 0.01, 1.13]} rotation-x={Math.PI / 2} castShadow scale={[1.14, 1, 1.14]}><capsuleGeometry args={[0.33, 0.72, 5, 10]} /><meshStandardMaterial color={red} roughness={0.96} flatShading /></mesh>
+        <mesh position={[0, 0, 1.84]} rotation-x={Math.PI / 2} castShadow scale={[0.88, 1, 0.88]}><capsuleGeometry args={[0.3, 0.55, 5, 10]} /><meshStandardMaterial color={cream} roughness={1} flatShading /></mesh>
       </group>
       {[-0.34, 0.34].flatMap((x) => [-0.53, 0.48].map((z) => {
         const index = (x > 0 ? 2 : 0) + (z > 0 ? 1 : 0);
@@ -352,9 +430,9 @@ function Sunlight() {
 
 export function Scene() {
   return <>
-    <color attach="background" args={["#9aa79e"]} />
-    <fog attach="fog" args={["#9aa79e", 24, 68]} />
-    <hemisphereLight args={["#b9c5bf", "#384237", 1.05]} />
+    <color attach="background" args={["#b5c0bd"]} />
+    <fog attach="fog" args={["#b5c0bd", 28, 78]} />
+    <hemisphereLight args={["#d8ddda", "#394538", 1.12]} />
     <Sunlight />
     <Environment resolution={64}><Lightformer intensity={1.4} color="#d5d0bd" position={[0, 8, 4]} scale={[18, 8, 1]} /><Lightformer intensity={0.65} color="#879f95" position={[-8, 3, -4]} rotation-y={Math.PI / 2} scale={[16, 4, 1]} /></Environment>
     <Terrain />
