@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useAuthStore } from "@/world/auth-store";
+import { startAuthListener, useAuthStore } from "@/world/auth-store";
 import { acceptInvite } from "@/world/pairing.functions";
 
 export const Route = createFileRoute("/invite/$code")({
@@ -15,6 +15,12 @@ function InvitePage() {
   const authLoading = useAuthStore((state) => state.loading);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // The invite page can be the very first screen a guest opens, so it has to
+  // start the session listener itself — the forest view is not mounted here.
+  useEffect(() => {
+    startAuthListener();
+  }, []);
 
   useEffect(() => {
     if (authLoading || !user || busy) return;
