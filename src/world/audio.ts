@@ -204,7 +204,12 @@ class ForestAudio {
   private applyWaterNearness(time = 0.45) {
     const closeness = this.waterNearness;
     const rainFullness = this.weather === "rain" ? 1.35 : 1;
-    const levels = [0.0015 + closeness * 0.03, 0.0006 + closeness * 0.024, closeness * 0.01];
+    const indoors = 1 - this.shelter * 0.8;
+    const levels = [
+      (0.0015 + closeness * 0.03) * indoors,
+      (0.0006 + closeness * 0.024) * indoors,
+      closeness * 0.01 * indoors,
+    ];
     this.water.forEach((layer, index) => {
       this.ramp(layer, (levels[index] ?? 0) * rainFullness, time);
       if (this.context) {
