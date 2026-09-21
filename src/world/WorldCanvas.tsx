@@ -630,6 +630,8 @@ export function WorldCanvas() {
         };
       } else {
         walkTarget = { x: cameraX + pointerX, y: cameraY + pointerY };
+        touches.push({ x: cameraX + pointerX, y: cameraY + pointerY, born: performance.now() });
+        if (touches.length > 8) touches.shift();
       }
       useUiStore.getState().markHintSeen();
     };
