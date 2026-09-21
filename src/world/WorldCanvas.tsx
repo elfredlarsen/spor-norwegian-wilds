@@ -1302,20 +1302,9 @@ export function WorldCanvas() {
         ctx.fillRect(0, 0, viewWidth, viewHeight);
         ctx.restore();
       }
-      if (weather === "sun") {
-        const warm = ctx.createRadialGradient(
-          viewWidth * 0.72,
-          viewHeight * 0.18,
-          40,
-          viewWidth * 0.72,
-          viewHeight * 0.18,
-          Math.max(viewWidth, viewHeight) * 0.9,
-        );
-        warm.addColorStop(0, "rgba(255, 224, 168, 0.35)");
-        warm.addColorStop(1, "rgba(255, 214, 148, 0.04)");
-        ctx.fillStyle = warm;
-        ctx.fillRect(0, 0, viewWidth, viewHeight);
-      }
+      // the warm sun is only suggested by the daylight wash and the landscape,
+      // not by a separate ray layer
+
 
       // gentle vignette keeps the edges calm
       const vignette = ctx.createRadialGradient(
