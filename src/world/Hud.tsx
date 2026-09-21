@@ -495,11 +495,9 @@ export function Hud() {
       </div>
 
       {note ? (
-        <div className="absolute bottom-6 left-1/2 w-72 -translate-x-1/2 rounded-2xl border border-white/10 bg-[#1d2620]/70 px-4 py-3 text-center text-sm text-[#e7e4d8]/85 shadow-lg backdrop-blur-md transition-opacity duration-700">
-          <p className="text-[#f4f1e6]">
-            {note.title} <span className="italic text-[#e7e4d8]/60">· {note.norwegian}</span>
-          </p>
-          <p className="mt-1 text-xs leading-relaxed text-[#e7e4d8]/65">{note.note}</p>
+        <div className="pointer-events-none absolute bottom-3 left-1/2 max-w-[70vw] -translate-x-1/2 px-3 text-center text-xs text-[#e7e4d8]/55 drop-shadow-[0_1px_4px_rgba(0,0,0,0.6)] transition-opacity duration-700 md:bottom-auto md:top-4">
+          <span className="text-[#f4f1e6]/80">{note.title}</span>
+          <span className="italic text-[#e7e4d8]/45"> · {note.norwegian}</span>
         </div>
       ) : null}
 
