@@ -14,13 +14,153 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      footprints: {
+        Row: {
+          angle: number
+          at: string
+          by: string
+          id: number
+          pairing_id: string
+          x: number
+          y: number
+        }
+        Insert: {
+          angle: number
+          at?: string
+          by: string
+          id?: never
+          pairing_id: string
+          x: number
+          y: number
+        }
+        Update: {
+          angle?: number
+          at?: string
+          by?: string
+          id?: never
+          pairing_id?: string
+          x?: number
+          y?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "footprints_pairing_id_fkey"
+            columns: ["pairing_id"]
+            isOneToOne: false
+            referencedRelation: "pairings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pairings: {
+        Row: {
+          companion_id: string | null
+          created_at: string
+          id: string
+          invite_code: string
+          inviter_id: string
+        }
+        Insert: {
+          companion_id?: string | null
+          created_at?: string
+          id?: string
+          invite_code: string
+          inviter_id: string
+        }
+        Update: {
+          companion_id?: string | null
+          created_at?: string
+          id?: string
+          invite_code?: string
+          inviter_id?: string
+        }
+        Relationships: []
+      }
+      placements: {
+        Row: {
+          at: string
+          by: string
+          id: string
+          kind: string
+          pairing_id: string
+          variant: number
+          x: number
+          y: number
+        }
+        Insert: {
+          at?: string
+          by: string
+          id: string
+          kind: string
+          pairing_id: string
+          variant: number
+          x: number
+          y: number
+        }
+        Update: {
+          at?: string
+          by?: string
+          id?: string
+          kind?: string
+          pairing_id?: string
+          variant?: number
+          x?: number
+          y?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "placements_pairing_id_fkey"
+            columns: ["pairing_id"]
+            isOneToOne: false
+            referencedRelation: "pairings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      world_state: {
+        Row: {
+          den: Json
+          pairing_id: string
+          updated_at: string
+          weather_at: string
+          weather_by: string | null
+          weather_kind: string
+        }
+        Insert: {
+          den?: Json
+          pairing_id: string
+          updated_at?: string
+          weather_at?: string
+          weather_by?: string | null
+          weather_kind?: string
+        }
+        Update: {
+          den?: Json
+          pairing_id?: string
+          updated_at?: string
+          weather_at?: string
+          weather_by?: string | null
+          weather_kind?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "world_state_pairing_id_fkey"
+            columns: ["pairing_id"]
+            isOneToOne: true
+            referencedRelation: "pairings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      is_pairing_member: {
+        Args: { target_pairing_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never
