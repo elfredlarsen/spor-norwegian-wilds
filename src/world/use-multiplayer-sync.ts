@@ -25,24 +25,33 @@ export function useMultiplayerSync(): MultiplayerStatus {
   const setParticipant = useUiStore((state) => state.setParticipant);
   const [status, setStatus] = useState<MultiplayerStatus>({ kind: "loading" });
   const bound = useRef<string | null>(null);
+  // Supabase fires several auth events in a row (initial session, signed in,
+  // token refreshed) and each hands us a fresh user object. Keying the effect
+  // on the account id — and letting only the newest lookup win — keeps a
+  // superseded run from leaving the panel stuck on "loading" forever.
+  const userId = user?.id ?? null;
+  const run = useRef(0);
 
   useEffect(() => {
     if (authLoading) return;
-    if (!user) {
+    if (!userId) {
       setStatus({ kind: "signed-out" });
       return;
     }
-    let cancelled = false;
+    const mine = ++run.current;
+    const stale = () => run.current !== mine;
     setStatus({ kind: "loading" });
     getMyPairing()
       .then(async (pairing) => {
-        if (cancelled) return;
+        if (stale()) return;
         if (!pairing) {
           setStatus({ kind: "unpaired" });
           return;
         }
         if (!pairing.paired) {
-          setStatus({ kind: "pending", inviteCode: (await createInvite({ data: {} })).inviteCode });
+          const invite = await createInvite({ data: {} });
+          if (stale()) return;
+          setStatus({ kind: "pending", inviteCode: invite.inviteCode });
           return;
         }
         const roleByUserId: Record<string, ParticipantId> = { [pairing.inviterId]: "elder" };
@@ -51,16 +60,14 @@ export function useMultiplayerSync(): MultiplayerStatus {
           bound.current = pairing.pairingId;
           await worldEngine.bindRemote(pairing.pairingId, pairing.myUserId, roleByUserId);
         }
+        if (stale()) return;
         setParticipant(pairing.role);
         setStatus({ kind: "paired", role: pairing.role });
       })
       .catch(() => {
-        if (!cancelled) setStatus({ kind: "unpaired" });
+        if (!stale()) setStatus({ kind: "unpaired" });
       });
-    return () => {
-      cancelled = true;
-    };
-  }, [user, authLoading, setParticipant]);
+  }, [userId, authLoading, setParticipant]);
 
   useEffect(
     () => () => {
