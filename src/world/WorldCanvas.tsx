@@ -512,6 +512,14 @@ export function WorldCanvas() {
     let actionUntil = 0;
     let actionKind: "sniff" | "drink" | "dig" | "rest" | null = null;
     let lastSenseNonce = 0;
+    let lastDenNonce = 0;
+    let denFox = { x: DEN_EXIT.x, y: DEN_EXIT.y - 60 };
+    let denAngle = -Math.PI / 2;
+    let denWalkTarget: { x: number; y: number } | null = null;
+    let denView = { scale: 1, offsetX: 0, offsetY: 0 };
+    let denSinceFootstep = 0;
+    let denActionUntil = 0;
+    let denActionKind: "sniff" | "drink" | "dig" | "rest" | null = null;
     let lastWeather: WeatherKind = worldEngine.state.weather.kind;
     let lastRainAt = lastWeather === "rain" ? performance.now() : -Infinity;
     const random = seeded(7139);
