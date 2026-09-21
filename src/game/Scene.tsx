@@ -11,6 +11,11 @@ const RIGHT = new THREE.Vector3();
 const MOVE = new THREE.Vector3();
 const CAMERA_TARGET = new THREE.Vector3();
 const LOOK_TARGET = new THREE.Vector3();
+const SURFACE_NORMAL = new THREE.Vector3();
+const SURFACE_RIGHT = new THREE.Vector3();
+const SURFACE_BACK = new THREE.Vector3();
+const TARGET_ROTATION = new THREE.Quaternion();
+const ROTATION_MATRIX = new THREE.Matrix4();
 
 function seeded(index: number, salt = 0) {
   const value = Math.sin(index * 127.1 + salt * 311.7) * 43758.5453;
@@ -19,6 +24,13 @@ function seeded(index: number, salt = 0) {
 
 function groundHeight(x: number, z: number) {
   return Math.sin(x * 0.11) * 0.42 + Math.cos(z * 0.09) * 0.32 + Math.sin((x + z) * 0.055) * 0.26;
+}
+
+function groundNormal(x: number, z: number, target: THREE.Vector3) {
+  const sample = 0.18;
+  const dx = groundHeight(x + sample, z) - groundHeight(x - sample, z);
+  const dz = groundHeight(x, z + sample) - groundHeight(x, z - sample);
+  return target.set(-dx / (sample * 2), 1, -dz / (sample * 2)).normalize();
 }
 
 function createGroundTexture() {
@@ -146,45 +158,83 @@ function Forest() {
   </>;
 }
 
-function Fox({ action }: { action: FoxAction }) {
+function Fox({ action, turn }: { action: FoxAction; turn: React.RefObject<number> }) {
   const body = useRef<THREE.Group>(null);
+  const spine = useRef<THREE.Group>(null);
   const tail = useRef<THREE.Group>(null);
   const head = useRef<THREE.Group>(null);
+  const ears = useRef<(THREE.Group | null)[]>([]);
+  const legs = useRef<(THREE.Group | null)[]>([]);
   useFrame(({ clock }, rawDelta) => {
     const dt = Math.min(rawDelta, 0.05);
     const t = clock.elapsedTime;
+    const moving = action === "moving";
+    const resting = action === "resting";
+    const gait = moving ? Math.sin(t * 8.4) : 0;
+    const breathe = Math.sin(t * 1.65) * 0.018;
     if (body.current) {
-      const targetY = action === "resting" ? 0.38 : 0.74;
+      const targetY = resting ? 0.28 : 0.76 + breathe;
       body.current.position.y += (targetY - body.current.position.y) * (1 - Math.exp(-5 * dt));
-      body.current.rotation.x += ((action === "resting" ? -0.08 : 0) - body.current.rotation.x) * (1 - Math.exp(-5 * dt));
-      if (action === "moving") body.current.position.y += Math.sin(t * 10) * 0.008;
+      body.current.rotation.x += ((resting ? 0.13 : moving ? gait * 0.018 : 0) - body.current.rotation.x) * (1 - Math.exp(-7 * dt));
+      body.current.rotation.z += ((moving ? Math.sin(t * 8.4 + 1.2) * 0.025 : 0) - body.current.rotation.z) * (1 - Math.exp(-7 * dt));
+    }
+    if (spine.current) {
+      spine.current.scale.y += ((resting ? 0.72 : 1 + breathe * 0.22) - spine.current.scale.y) * (1 - Math.exp(-5 * dt));
+      spine.current.rotation.z += ((resting ? 0.1 : 0) - spine.current.rotation.z) * (1 - Math.exp(-5 * dt));
     }
     if (tail.current) {
-      const curl = action === "resting" ? -2.15 : -0.55 + Math.sin(t * 2.1) * 0.08;
+      const steeringLag = THREE.MathUtils.clamp(turn.current * -0.24, -0.32, 0.32);
+      const curl = resting ? -2.48 : -0.42 + Math.sin(t * (moving ? 3.8 : 1.8)) * (moving ? 0.14 : 0.07) + steeringLag;
       tail.current.rotation.y += (curl - tail.current.rotation.y) * (1 - Math.exp(-4 * dt));
+      tail.current.rotation.x += ((resting ? 0.45 : 0.18 + (moving ? gait * 0.045 : 0)) - tail.current.rotation.x) * (1 - Math.exp(-5 * dt));
     }
     if (head.current) {
-      const lift = action === "sniffing" ? -0.48 : action === "resting" ? 0.22 : 0;
+      const lift = action === "sniffing" ? -0.5 : resting ? 0.5 : moving ? gait * 0.025 : 0;
       head.current.rotation.x += (lift - head.current.rotation.x) * (1 - Math.exp(-4 * dt));
+      head.current.position.y += ((resting ? 0.02 : 0.31) - head.current.position.y) * (1 - Math.exp(-5 * dt));
+      head.current.position.z += ((resting ? -0.72 : -1.05) - head.current.position.z) * (1 - Math.exp(-5 * dt));
     }
+    legs.current.forEach((leg, index) => {
+      if (!leg) return;
+      const phase = index === 0 || index === 3 ? 0 : Math.PI;
+      const targetX = resting ? (index < 2 ? 0.95 : -0.95) : moving ? Math.sin(t * 8.4 + phase) * 0.48 : 0;
+      leg.rotation.x += (targetX - leg.rotation.x) * (1 - Math.exp(-10 * dt));
+      leg.rotation.z += ((resting ? (index % 2 ? -0.55 : 0.55) : 0) - leg.rotation.z) * (1 - Math.exp(-7 * dt));
+    });
+    ears.current.forEach((ear, index) => {
+      if (!ear) return;
+      const twitch = !moving && !resting && Math.sin(t * 0.72 + index * 2.8) > 0.965 ? Math.sin(t * 18) * 0.11 : 0;
+      ear.rotation.z += ((index ? -0.12 : 0.12) + twitch - ear.rotation.z) * (1 - Math.exp(-12 * dt));
+    });
   });
-  const red = "#a94c27";
+  const red = "#b9512d";
+  const dark = "#252520";
+  const cream = "#eee2c8";
   return (
     <group ref={body} position-y={0.74}>
-      <mesh castShadow scale={[0.62, 0.55, 1.15]}><sphereGeometry args={[0.72, 12, 8]} /><meshStandardMaterial color={red} roughness={0.85} /></mesh>
-      <group ref={head} position={[0, 0.28, -1.03]}>
-        <mesh castShadow scale={[0.56, 0.55, 0.7]}><sphereGeometry args={[0.65, 12, 8]} /><meshStandardMaterial color={red} roughness={0.85} /></mesh>
-        <mesh position={[0, -0.08, -0.55]} rotation-x={Math.PI / 2}><coneGeometry args={[0.28, 0.72, 8]} /><meshStandardMaterial color="#c36a3b" roughness={0.86} /></mesh>
-        <mesh position={[0, -0.1, -0.93]}><sphereGeometry args={[0.095, 8, 6]} /><meshStandardMaterial color="#252722" roughness={0.72} /></mesh>
-        {[-1, 1].map((side) => <group key={side} position={[side * 0.35, 0.53, -0.06]} rotation-z={side * -0.18}><mesh><coneGeometry args={[0.2, 0.58, 7]} /><meshStandardMaterial color={red} roughness={0.9} /></mesh><mesh position={[0, -0.04, -0.012]} scale={0.58}><coneGeometry args={[0.2, 0.52, 7]} /><meshStandardMaterial color="#49352f" roughness={1} /></mesh></group>)}
-        {[-1, 1].map((side) => <mesh key={side} position={[side * 0.24, 0.15, -0.5]}><sphereGeometry args={[0.045, 7, 6]} /><meshStandardMaterial color="#171b18" roughness={0.5} /></mesh>)}
-        <mesh position={[0, -0.28, -0.2]} scale={[0.38, 0.24, 0.42]}><sphereGeometry args={[0.55, 10, 7]} /><meshStandardMaterial color="#e2d5b7" roughness={1} /></mesh>
+      <group ref={spine}>
+        <mesh castShadow scale={[0.5, 0.48, 1.22]}><sphereGeometry args={[0.72, 14, 9]} /><meshStandardMaterial color={red} roughness={0.9} flatShading /></mesh>
+        <mesh position={[0, 0.04, 0.54]} castShadow scale={[0.54, 0.54, 0.7]}><sphereGeometry args={[0.68, 12, 8]} /><meshStandardMaterial color="#9e4127" roughness={0.92} flatShading /></mesh>
+        <mesh position={[0, -0.29, -0.25]} scale={[0.35, 0.15, 0.78]}><sphereGeometry args={[0.72, 12, 7]} /><meshStandardMaterial color={cream} roughness={1} flatShading /></mesh>
+        <mesh position={[0, 0.1, -0.76]} rotation-x={-0.16} scale={[0.42, 0.62, 0.48]}><sphereGeometry args={[0.68, 12, 8]} /><meshStandardMaterial color={cream} roughness={1} flatShading /></mesh>
       </group>
-      <group ref={tail} position={[0, 0.15, 0.82]} rotation={[0.18, -0.55, 0]}>
-        <mesh position={[0, 0, 0.86]} rotation-x={Math.PI / 2} castShadow><coneGeometry args={[0.42, 1.9, 10]} /><meshStandardMaterial color={red} roughness={0.9} /></mesh>
-        <mesh position={[0, 0, 1.7]} rotation-x={Math.PI / 2}><coneGeometry args={[0.26, 0.55, 10]} /><meshStandardMaterial color="#e4d8bc" roughness={1} /></mesh>
+      <group ref={head} position={[0, 0.31, -1.05]}>
+        <mesh castShadow rotation-x={-0.08} scale={[0.49, 0.54, 0.58]}><octahedronGeometry args={[0.72, 2]} /><meshStandardMaterial color={red} roughness={0.88} flatShading /></mesh>
+        <mesh position={[0, -0.1, -0.62]} rotation-x={Math.PI / 2} scale={[1, 1, 1.2]}><coneGeometry args={[0.25, 0.72, 8]} /><meshStandardMaterial color="#d26b3e" roughness={0.9} flatShading /></mesh>
+        <mesh position={[0, -0.11, -1.02]} scale={[0.11, 0.085, 0.1]}><sphereGeometry args={[1, 8, 6]} /><meshStandardMaterial color={dark} roughness={0.72} /></mesh>
+        {[-1, 1].map((side, index) => <group ref={(node) => { ears.current[index] = node; }} key={side} position={[side * 0.31, 0.48, -0.02]} rotation-z={side * -0.12}><mesh castShadow><coneGeometry args={[0.19, 0.62, 7]} /><meshStandardMaterial color={dark} roughness={0.95} flatShading /></mesh><mesh position={[0, -0.055, -0.025]} scale={[0.62, 0.76, 0.64]}><coneGeometry args={[0.19, 0.58, 7]} /><meshStandardMaterial color="#c57970" roughness={1} flatShading /></mesh></group>)}
+        {[-1, 1].map((side) => <mesh key={side} position={[side * 0.225, 0.105, -0.49]} rotation-z={side * 0.08} scale={[0.075, 0.038, 0.028]}><sphereGeometry args={[1, 8, 5]} /><meshStandardMaterial color="#111714" roughness={0.42} /></mesh>)}
+        {[-1, 1].map((side) => <mesh key={side} position={[side * 0.31, -0.13, -0.43]} rotation-z={side * 0.28} scale={[0.28, 0.23, 0.34]}><sphereGeometry args={[0.72, 10, 7]} /><meshStandardMaterial color={cream} roughness={1} flatShading /></mesh>)}
       </group>
-      {[-0.38, 0.38].flatMap((x) => [-0.48, 0.48].map((z) => <group key={`${x}-${z}`} position={[x, -0.36, z]}><mesh castShadow><cylinderGeometry args={[0.1, 0.12, 0.68, 7]} /><meshStandardMaterial color="#6f351f" roughness={0.9} /></mesh><mesh position={[0, -0.33, -0.05]} scale={[0.14, 0.08, 0.22]}><sphereGeometry args={[1, 7, 5]} /><meshStandardMaterial color="#282b26" /></mesh></group>))}
+      <group ref={tail} position={[0, 0.16, 0.82]} rotation={[0.18, -0.42, 0]}>
+        <mesh position={[0, 0.02, 0.48]} rotation-x={Math.PI / 2} castShadow scale={[0.78, 1, 0.78]}><capsuleGeometry args={[0.28, 0.5, 5, 9]} /><meshStandardMaterial color="#a94529" roughness={0.94} flatShading /></mesh>
+        <mesh position={[0, 0.01, 1.08]} rotation-x={Math.PI / 2} castShadow scale={[1.05, 1, 1.05]}><capsuleGeometry args={[0.31, 0.62, 5, 9]} /><meshStandardMaterial color={red} roughness={0.94} flatShading /></mesh>
+        <mesh position={[0, 0, 1.7]} rotation-x={Math.PI / 2} castShadow scale={[0.78, 1, 0.78]}><capsuleGeometry args={[0.28, 0.48, 5, 9]} /><meshStandardMaterial color={cream} roughness={1} flatShading /></mesh>
+      </group>
+      {[-0.34, 0.34].flatMap((x) => [-0.53, 0.48].map((z) => {
+        const index = (x > 0 ? 2 : 0) + (z > 0 ? 1 : 0);
+        return <group ref={(node) => { legs.current[index] = node; }} key={`${x}-${z}`} position={[x, -0.22, z]}><mesh position-y={-0.22} castShadow><cylinderGeometry args={[0.075, 0.115, 0.48, 7]} /><meshStandardMaterial color={red} roughness={0.92} flatShading /></mesh><mesh position-y={-0.49} castShadow><cylinderGeometry args={[0.065, 0.082, 0.3, 7]} /><meshStandardMaterial color={dark} roughness={0.94} flatShading /></mesh><mesh position={[0, -0.65, -0.07]} scale={[0.11, 0.065, 0.19]}><sphereGeometry args={[1, 7, 5]} /><meshStandardMaterial color={dark} roughness={0.95} /></mesh></group>;
+      }))}
     </group>
   );
 }
@@ -201,6 +251,8 @@ function Player() {
   const bloomClock = useRef(0);
   const sniffClock = useRef(0);
   const stepClock = useRef(0);
+  const velocity = useRef(new THREE.Vector3());
+  const turnRate = useRef(0);
   const actionRef = useRef<FoxAction>("idle");
   const { camera } = useThree();
 
@@ -220,22 +272,38 @@ function Player() {
     const sniffing = sniffClock.current > 0;
     const forwardInput = (keys.current.has("KeyW") || keys.current.has("ArrowUp") ? 1 : 0) - (keys.current.has("KeyS") || keys.current.has("ArrowDown") ? 1 : 0) - store.joystick.y;
     const sideInput = (keys.current.has("KeyD") || keys.current.has("ArrowRight") ? 1 : 0) - (keys.current.has("KeyA") || keys.current.has("ArrowLeft") ? 1 : 0) + store.joystick.x;
-    let moving = false;
-    if (!resting && !sniffing && Math.hypot(forwardInput, sideInput) > 0.08) {
+    const inputAmount = Math.hypot(forwardInput, sideInput);
+    if (!resting && !sniffing && inputAmount > 0.08) {
       camera.getWorldDirection(FORWARD);
       FORWARD.y = 0;
       FORWARD.normalize();
       RIGHT.crossVectors(FORWARD, camera.up).normalize();
       MOVE.set(0, 0, 0).addScaledVector(FORWARD, forwardInput).addScaledVector(RIGHT, sideInput).normalize();
-      const distance = 2.75 * dt;
-      object.position.addScaledVector(MOVE, distance);
+      MOVE.multiplyScalar(2.8);
+      velocity.current.lerp(MOVE, 1 - Math.exp(-4.2 * dt));
+    } else {
+      velocity.current.multiplyScalar(Math.exp(-5.2 * dt));
+    }
+    const speed = velocity.current.length();
+    const moving = speed > 0.08;
+    if (moving) {
+      const distance = speed * dt;
+      object.position.addScaledVector(velocity.current, dt);
       const radius = Math.hypot(object.position.x, object.position.z);
-      if (radius > 35) object.position.multiplyScalar(35 / radius);
+      if (radius > 35) {
+        object.position.x *= 35 / radius;
+        object.position.z *= 35 / radius;
+        velocity.current.multiplyScalar(0.4);
+      }
       object.position.y = groundHeight(object.position.x, object.position.z);
-      const yaw = Math.atan2(-MOVE.x, -MOVE.z);
-      const diff = Math.atan2(Math.sin(yaw - object.rotation.y), Math.cos(yaw - object.rotation.y));
-      object.rotation.y += diff * (1 - Math.exp(-8 * dt));
-      moving = true;
+      groundNormal(object.position.x, object.position.z, SURFACE_NORMAL);
+      SURFACE_BACK.copy(velocity.current).normalize().multiplyScalar(-1).projectOnPlane(SURFACE_NORMAL).normalize();
+      SURFACE_RIGHT.crossVectors(SURFACE_NORMAL, SURFACE_BACK).normalize();
+      ROTATION_MATRIX.makeBasis(SURFACE_RIGHT, SURFACE_NORMAL, SURFACE_BACK);
+      TARGET_ROTATION.setFromRotationMatrix(ROTATION_MATRIX);
+      const oldYaw = object.rotation.y;
+      object.quaternion.slerp(TARGET_ROTATION, 1 - Math.exp(-7 * dt));
+      turnRate.current += ((object.rotation.y - oldYaw) / Math.max(dt, 0.001) - turnRate.current) * (1 - Math.exp(-5 * dt));
       trailDistance.current += distance;
       stepClock.current += dt;
       if (stepClock.current > 0.58) { forestAudio.footstep(); stepClock.current = 0; }
@@ -243,7 +311,7 @@ function Player() {
         trailDistance.current = 0;
         setTrails((previous) => [...previous.slice(-179), { id: Date.now() + previous.length, x: object.position.x, z: object.position.z, yaw: object.rotation.y }]);
       }
-    }
+    } else turnRate.current *= Math.exp(-5 * dt);
     if (resting) {
       bloomClock.current += dt;
       if (bloomClock.current > 0.5) {
@@ -267,7 +335,7 @@ function Player() {
   return <>
     {trails.map((trail) => <mesh key={trail.id} position={[trail.x, groundHeight(trail.x, trail.z) + 0.025, trail.z]} rotation={[-Math.PI / 2, 0, trail.yaw]}><circleGeometry args={[0.34, 10]} /><meshStandardMaterial color="#4b513e" transparent opacity={0.45} roughness={1} depthWrite={false} /></mesh>)}
     {blooms.map((bloom, index) => <group key={bloom.id} position={[bloom.x, groundHeight(bloom.x, bloom.z) + 0.07, bloom.z]} scale={Math.min(1.25, 0.7 + index * 0.05)}><mesh scale={[0.52, 0.1, 0.52]}><sphereGeometry args={[1, 8, 5]} /><meshStandardMaterial color="#5f914b" roughness={1} /></mesh>{index % 3 === 0 && <mesh position={[0.18, 0.17, 0]}><sphereGeometry args={[0.075, 6, 5]} /><meshStandardMaterial color="#e6dfbd" /></mesh>}</group>)}
-    <group ref={player}><Fox action={action} /></group>
+    <group ref={player}><Fox action={action} turn={turnRate} /></group>
   </>;
 }
 
