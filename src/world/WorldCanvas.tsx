@@ -378,6 +378,7 @@ function drawFox(
   gait: number,
   moving: boolean,
   tint: string,
+  sensing: "sniff" | "drink" | "dig" | null,
 ) {
   ctx.save();
   ctx.translate(x, y);
@@ -389,7 +390,7 @@ function drawFox(
   ctx.globalAlpha = 1;
   ctx.rotate(angle);
 
-  const bob = moving ? Math.sin(gait) * 1.2 : Math.sin(gait * 0.25) * 0.5;
+  const bob = sensing === "drink" ? 4 : sensing === "dig" ? Math.sin(gait * 3) * 1.8 : moving ? Math.sin(gait) * 1.2 : Math.sin(gait * 0.25) * 0.5;
   const sway = moving ? Math.sin(gait * 0.5) * 0.28 : Math.sin(gait * 0.2) * 0.1;
 
   // tail
@@ -432,7 +433,7 @@ function drawFox(
   // head
   ctx.save();
   ctx.translate(16, bob * 0.5);
-  ctx.rotate(sway * 0.5);
+  ctx.rotate(sensing === "sniff" ? -0.28 : sensing === "drink" ? 0.42 : sway * 0.5);
   ctx.fillStyle = tint;
   ctx.beginPath();
   ctx.ellipse(0, 0, 9.5, 8, 0, 0, Math.PI * 2);
@@ -557,6 +558,7 @@ export function WorldCanvas() {
         event.preventDefault();
         useUiStore.getState().markHintSeen();
       }
+      if (!event.repeat && event.key.toLowerCase() === "e") useUiStore.getState().requestSense("sniff");
     };
     const onKeyUp = (event: KeyboardEvent) => {
       keys[event.key.toLowerCase()] = false;
@@ -766,7 +768,7 @@ export function WorldCanvas() {
 
       if (weather === "rain" && random() < delta * 1.5) {
         const y = cameraY + random() * viewHeight;
-        ripples.push({ x: streamCenter(y) + (random() - 0.5) * streamHalfWidth(y), y, born: now, strength: 0.7 });
+        ripples.push({ x: streamCenter(y) + (random() - 0.5) * streamHalfWidth(y), y, born: now, strength: random() < 0.08 ? 1.25 : 0.7 });
       }
       for (let index = ripples.length - 1; index >= 0; index -= 1) {
         const ripple = ripples[index];
@@ -821,6 +823,25 @@ export function WorldCanvas() {
         if (item.y < cameraY - 120 || item.y > cameraY + viewHeight + 120) continue;
         drawables.push({ y: item.y, draw: () => drawPlacement(ctx, item, now2) });
       }
+      const stones = state.placements.filter((item) => item.kind === "stone");
+      for (const stone of stones) {
+        const nearby = stones.filter((item) => Math.hypot(item.x - stone.x, item.y - stone.y) < 62);
+        if (nearby.length < 3 || nearby[0]?.id !== stone.id) continue;
+        const pulse = 0.5 + Math.sin(now * 0.0012) * 0.18;
+        drawables.push({
+          y: stone.y - 1,
+          draw: () => {
+            const aurora = ctx.createRadialGradient(stone.x, stone.y, 8, stone.x, stone.y, 150);
+            aurora.addColorStop(0, `rgba(160, 222, 180, ${pulse})`);
+            aurora.addColorStop(0.45, `rgba(124, 190, 169, ${pulse * 0.32})`);
+            aurora.addColorStop(1, "rgba(124, 190, 169, 0)");
+            ctx.fillStyle = aurora;
+            ctx.beginPath();
+            ctx.arc(stone.x, stone.y, 150, 0, Math.PI * 2);
+            ctx.fill();
+          },
+        });
+      }
 
       for (const bird of birds) {
         const distance = Math.hypot(current.x - bird.x, current.y - bird.y);
@@ -846,7 +867,7 @@ export function WorldCanvas() {
       const foxTint = participant === "child" ? "#c9743a" : "#b75c32";
       drawables.push({
         y: current.y,
-        draw: () => drawFox(ctx, current.x, current.y, angle, gait, moving, foxTint),
+        draw: () => drawFox(ctx, current.x, current.y, angle, gait, moving, foxTint, now < actionUntil ? actionKind : null),
       });
       // the other participant rests quietly where they last wandered
       const other: ParticipantId = participant === "elder" ? "child" : "elder";
@@ -855,7 +876,7 @@ export function WorldCanvas() {
         y: otherPosition.y,
         draw: () => {
           ctx.globalAlpha = 0.45;
-          drawFox(ctx, otherPosition.x, otherPosition.y, -0.4, 0, false, other === "child" ? "#c9743a" : "#b75c32");
+          drawFox(ctx, otherPosition.x, otherPosition.y, -0.4, 0, false, other === "child" ? "#c9743a" : "#b75c32", null);
           ctx.globalAlpha = 1;
         },
       });
