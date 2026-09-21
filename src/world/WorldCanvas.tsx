@@ -572,6 +572,9 @@ export function WorldCanvas() {
     });
     const ripples: Ripple[] = [];
     const scents: ScentWisp[] = [];
+    // wordless answers: a ring where you touched, motes stirred up as you walk
+    const touches: { x: number; y: number; born: number }[] = [];
+    const motes: { x: number; y: number; vx: number; vy: number; born: number }[] = [];
     const moths = Array.from({ length: 32 }, () => ({ x: random() * WORLD_WIDTH, y: random() * WORLD_HEIGHT, phase: random() * Math.PI * 2 }));
     const leaves = Array.from({ length: 34 }, () => { const y = random() * WORLD_HEIGHT; return { x: streamCenter(y) + (random() - 0.5) * streamHalfWidth(y), y, phase: random() * Math.PI * 2 }; });
 
