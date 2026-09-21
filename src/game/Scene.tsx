@@ -177,7 +177,7 @@ function Understory() {
 }
 
 function ValleyBackdrop() {
-  const ridges = [
+  const ridges: Array<{ z: number; y: number; color: string; points: Array<[number, number]> }> = [
     { z: -45, y: 2, color: "#7d8988", points: [[-48, 3], [-37, 12], [-27, 7], [-17, 16], [-6, 8], [4, 15], [15, 7], [28, 13], [42, 4]] },
     { z: -58, y: 5, color: "#91a09f", points: [[-50, 5], [-39, 18], [-30, 10], [-20, 22], [-8, 13], [2, 25], [13, 15], [24, 23], [39, 8], [50, 12]] },
   ];
