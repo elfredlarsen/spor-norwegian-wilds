@@ -423,13 +423,13 @@ function drawFox(
   const appearance = participant === "elder"
     ? {
         coat: "#b9532f", warm: "#d97843", cream: "#f3dfbd", dark: "#422d28", innerEar: "#73403a",
-        outline: "#63382f", scale: 1.06, bodyW: 18.5, headW: 10, headL: 8.6,
-        earScale: 1.04, snoutL: 18.8, cheekR: 7.7, eyeScale: 1.0, tailLift: 0,
+        outline: "#63382f", scale: 1.06, bodyW: 17.8, headW: 10.4, headL: 8.8,
+        earScale: 1.04, snoutL: 17.8, eyeScale: 1.0, tailLift: 0,
       }
     : {
         coat: "#dc8646", warm: "#eca45f", cream: "#fff0cf", dark: "#50332d", innerEar: "#8b5148",
-        outline: "#704238", scale: 0.94, bodyW: 17, headW: 9.4, headL: 8,
-        earScale: 1.12, snoutL: 16.8, cheekR: 8.8, eyeScale: 1.12, tailLift: -2,
+        outline: "#704238", scale: 0.94, bodyW: 16.6, headW: 9.8, headL: 8.3,
+        earScale: 1.1, snoutL: 16.4, eyeScale: 1.12, tailLift: -2,
       };
 
   ctx.save();
@@ -455,9 +455,9 @@ function drawFox(
   ctx.lineJoin = "round";
   ctx.beginPath();
   ctx.moveTo(-9, appearance.tailLift + 2);
-  ctx.bezierCurveTo(-18, 14, -38, 18, -47, 7);
-  ctx.bezierCurveTo(-55, -3, -48, -15, -37, -16);
-  ctx.bezierCurveTo(-24, -17, -17, -7, -9, appearance.tailLift + 2);
+  ctx.bezierCurveTo(-18, 15, -39, 19, -48, 8);
+  ctx.bezierCurveTo(-57, -3, -49, -17, -37, -17);
+  ctx.bezierCurveTo(-23, -18, -16, -7, -9, appearance.tailLift + 2);
   ctx.fill();
   ctx.stroke();
   // The cream tip has a small uneven fur edge rather than a straight band.
@@ -498,6 +498,18 @@ function drawFox(
   ctx.fill();
   ctx.globalAlpha = 1;
 
+  // A small chest bib peeks from beneath the head, as in the reference.
+  ctx.fillStyle = appearance.cream;
+  ctx.beginPath();
+  ctx.moveTo(7.5, -7.2);
+  ctx.quadraticCurveTo(13, -6, 13.8, 0);
+  ctx.quadraticCurveTo(13, 6, 7.5, 7.2);
+  ctx.lineTo(9.2, 3.2);
+  ctx.lineTo(7.8, 0);
+  ctx.lineTo(9.2, -3.2);
+  ctx.closePath();
+  ctx.fill();
+
   // head
   ctx.save();
   ctx.translate(15, bob * 0.5);
@@ -518,6 +530,18 @@ function drawFox(
   ctx.quadraticCurveTo(-4, appearance.headL, -7, 0);
   ctx.fill();
   ctx.stroke();
+
+  // Warm forehead plane keeps the face predominantly fox-red.
+  ctx.fillStyle = appearance.warm;
+  ctx.globalAlpha = 0.55;
+  ctx.beginPath();
+  ctx.moveTo(-3.5, 0);
+  ctx.quadraticCurveTo(1, -6.4, 7, -6.1);
+  ctx.lineTo(9.5, 0);
+  ctx.lineTo(7, 6.1);
+  ctx.quadraticCurveTo(1, 6.4, -3.5, 0);
+  ctx.fill();
+  ctx.globalAlpha = 1;
 
   // Tall, upright ears with pale inner tufts like the front-view reference.
   const earScale = appearance.earScale;
@@ -545,36 +569,36 @@ function drawFox(
   ctx.closePath();
   ctx.fill();
 
-  // Pointed cheek brushes frame the pale muzzle mask.
+  // Two restrained cheek flashes frame the muzzle without whitening the face.
   ctx.fillStyle = appearance.cream;
   ctx.beginPath();
-  ctx.moveTo(2, -8.2);
-  ctx.quadraticCurveTo(7, -10.5, 11, -8);
-  ctx.lineTo(8.5, -5.3);
-  ctx.lineTo(12.8, -3.3);
-  ctx.quadraticCurveTo(8, -1, 4.5, -0.4);
-  ctx.lineTo(4.5, 0.4);
-  ctx.quadraticCurveTo(8, 1, 12.8, 3.3);
-  ctx.lineTo(8.5, 5.3);
-  ctx.lineTo(11, 8);
-  ctx.quadraticCurveTo(7, 10.5, 2, 8.2);
-  ctx.quadraticCurveTo(5.5, 4.5, 6, 0);
-  ctx.quadraticCurveTo(5.5, -4.5, 2, -8.2);
+  ctx.moveTo(6.8, -7.2);
+  ctx.quadraticCurveTo(10.5, -8.8, 13.1, -6.4);
+  ctx.lineTo(11.2, -4.7);
+  ctx.lineTo(13.8, -3.3);
+  ctx.quadraticCurveTo(10, -2.5, 8.3, -1.2);
+  ctx.lineTo(8.3, 1.2);
+  ctx.quadraticCurveTo(10, 2.5, 13.8, 3.3);
+  ctx.lineTo(11.2, 4.7);
+  ctx.lineTo(13.1, 6.4);
+  ctx.quadraticCurveTo(10.5, 8.8, 6.8, 7.2);
+  ctx.quadraticCurveTo(9.2, 3.8, 9.6, 0);
+  ctx.quadraticCurveTo(9.2, -3.8, 6.8, -7.2);
   ctx.fill();
 
-  // Longer, more pointed snout with a neat dark nose.
+  // A narrow cream muzzle leaves the brow and cheeks visibly orange.
   ctx.fillStyle = appearance.cream;
   const snoutL = appearance.snoutL;
   ctx.beginPath();
-  ctx.moveTo(0, -4.6);
-  ctx.quadraticCurveTo(snoutL * 0.42, -3.2, snoutL, 0);
-  ctx.quadraticCurveTo(snoutL * 0.42, 3.2, 0, 4.6);
-  ctx.quadraticCurveTo(snoutL * 0.2, 0, 0, -4.6);
+  ctx.moveTo(8, -3.7);
+  ctx.quadraticCurveTo(snoutL * 0.62, -2.7, snoutL, 0);
+  ctx.quadraticCurveTo(snoutL * 0.62, 2.7, 8, 3.7);
+  ctx.quadraticCurveTo(10.2, 0, 8, -3.7);
   ctx.fill();
-  // Small pale brow marks make the expression gentle without humanising it.
+  // Small pale brow marks echo the reference's gentle expression.
   ctx.beginPath();
-  ctx.ellipse(2.2, -5.4, 1.7, 0.85, 0, 0, Math.PI * 2);
-  ctx.ellipse(2.2, 5.4, 1.7, 0.85, 0, 0, Math.PI * 2);
+  ctx.ellipse(5, -5.6, 1.6, 0.78, 0, 0, Math.PI * 2);
+  ctx.ellipse(5, 5.6, 1.6, 0.78, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.fillStyle = appearance.dark;
   ctx.beginPath();
@@ -585,13 +609,13 @@ function drawFox(
   const eyeR = 1.45 * appearance.eyeScale;
   ctx.fillStyle = appearance.dark;
   ctx.beginPath();
-  ctx.ellipse(2.6, -4.2, eyeR, eyeR * 1.2, 0, 0, Math.PI * 2);
-  ctx.ellipse(2.6, 4.2, eyeR, eyeR * 1.2, 0, 0, Math.PI * 2);
+  ctx.ellipse(7.8, -4.5, eyeR, eyeR * 1.2, 0, 0, Math.PI * 2);
+  ctx.ellipse(7.8, 4.5, eyeR, eyeR * 1.2, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.fillStyle = appearance.cream;
   ctx.beginPath();
-  ctx.arc(3.3, -4.8, 0.48 * appearance.eyeScale, 0, Math.PI * 2);
-  ctx.arc(3.3, 3.6, 0.48 * appearance.eyeScale, 0, Math.PI * 2);
+  ctx.arc(8.4, -5, 0.48 * appearance.eyeScale, 0, Math.PI * 2);
+  ctx.arc(8.4, 4, 0.48 * appearance.eyeScale, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
 
