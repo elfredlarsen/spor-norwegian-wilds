@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
+import { Link } from "@tanstack/react-router";
 import {
   ArrowDownToLine,
   Circle,
   CloudFog,
   CloudRain,
   Cherry,
+  Copy,
   DoorClosed,
   DoorOpen,
   Droplet,
@@ -19,6 +21,7 @@ import {
   PawPrint,
   Sun,
   TreePine,
+  UserPlus,
   Volume2,
   VolumeX,
   Wind,
@@ -28,9 +31,11 @@ import { Button } from "@/components/ui/button";
 import { audio } from "./audio";
 import { worldEngine } from "./engine";
 import { createNatureJournalNote } from "./journal.functions";
+import { createInvite } from "./pairing.functions";
 import { padRef } from "./WorldCanvas";
 import { useUiStore, type Carried } from "./ui-store";
 import { PARTICIPANTS, type ParticipantId, type PlacementKind, type WeatherKind } from "./types";
+import type { MultiplayerStatus } from "./use-multiplayer-sync";
 
 type IconType = typeof Sun;
 
@@ -212,7 +217,105 @@ function CarryBadge({ carried }: { carried: Carried }) {
   );
 }
 
-export function Hud() {
+/**
+ * Sharing is opt-in and stays out of the wordless icon language above — this
+ * is the one corner where an account and a copyable link make sense, so it
+ * gets a little text, the same way the nature journal panel already does.
+ */
+function CompanionPanel({ multiplayer }: { multiplayer: MultiplayerStatus }) {
+  const [copied, setCopied] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [inviteCode, setInviteCode] = useState<string | null>(null);
+
+  const code = multiplayer.kind === "pending" ? multiplayer.inviteCode : inviteCode;
+
+  const copyLink = async (value: string) => {
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}/invite/${value}`);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      /* clipboard may be unavailable; the link is still shown below */
+    }
+  };
+
+  if (multiplayer.kind === "loading" || multiplayer.kind === "paired") return null;
+
+  if (multiplayer.kind === "signed-out") {
+    return (
+      <Panel>
+        <Link
+          to="/sign-in"
+          className="pointer-events-auto flex min-h-11 items-center gap-2 rounded-xl px-2 text-xs text-[#e7e4d8]/70 hover:bg-[#e7e4d8]/10"
+        >
+          <UserPlus className="size-5" strokeWidth={1.6} aria-hidden="true" />
+          Del skoven
+        </Link>
+      </Panel>
+    );
+  }
+
+  if (code) {
+    return (
+      <Panel>
+        <div className="flex max-w-[13rem] items-center gap-2 px-1 py-0.5 text-xs text-[#e7e4d8]/80">
+          <span className="truncate">/invite/{code}</span>
+          <button
+            type="button"
+            onClick={() => void copyLink(code)}
+            title="Kopiér invitationslink"
+            aria-label="Kopiér invitationslink"
+            className="pointer-events-auto flex min-h-8 min-w-8 shrink-0 items-center justify-center rounded-lg hover:bg-[#e7e4d8]/10"
+          >
+            <Copy className="size-4" strokeWidth={1.6} aria-hidden="true" />
+          </button>
+        </div>
+        {copied ? <p className="px-1 pb-1 text-[10px] text-[#e7e4d8]/50">Kopieret</p> : null}
+      </Panel>
+    );
+  }
+
+  // signed in, no pairing yet
+  return (
+    <Panel>
+      <button
+        type="button"
+        disabled={generating}
+        onClick={async () => {
+          setGenerating(true);
+          try {
+            const world = worldEngine.state;
+            const result = await createInvite({
+              data: {
+                seed: {
+                  placements: world.placements.map((item) => ({
+                    id: item.id,
+                    kind: item.kind,
+                    x: item.x,
+                    y: item.y,
+                    variant: item.variant,
+                    at: item.at,
+                  })),
+                  den: world.den,
+                  weather: { kind: world.weather.kind, at: world.weather.at },
+                },
+              },
+            });
+            setInviteCode(result.inviteCode);
+          } finally {
+            setGenerating(false);
+          }
+        }}
+        className="pointer-events-auto flex min-h-11 items-center gap-2 rounded-xl px-2 text-xs text-[#e7e4d8]/70 hover:bg-[#e7e4d8]/10 disabled:opacity-40"
+      >
+        <UserPlus className="size-5" strokeWidth={1.6} aria-hidden="true" />
+        Inviter en følgesvend
+      </button>
+    </Panel>
+  );
+}
+
+export function Hud({ multiplayer }: { multiplayer: MultiplayerStatus }) {
   const {
     participant,
     tool,
@@ -364,13 +467,25 @@ export function Hud() {
     <div className="pointer-events-none absolute inset-0 z-10 select-none font-[var(--font-display)] text-[#e7e4d8]">
       <div className={`absolute left-4 top-4 flex flex-col gap-2 ${quiet}`}>
         <Panel>
-          <IconButton
-            Icon={PawPrint}
-            label={`Switch to the other fox — now ${PARTICIPANTS[participant].label}`}
-            onClick={switchParticipant}
-            tint={PARTICIPANTS[participant].hue}
-          />
+          {multiplayer.kind === "paired" ? (
+            <IconButton
+              Icon={PawPrint}
+              label={`You are ${PARTICIPANTS[participant].label} — shared with your companion`}
+              onClick={() => {}}
+              dim
+              tint={PARTICIPANTS[participant].hue}
+            />
+          ) : (
+            <IconButton
+              Icon={PawPrint}
+              label={`Switch to the other fox — now ${PARTICIPANTS[participant].label}`}
+              onClick={switchParticipant}
+              tint={PARTICIPANTS[participant].hue}
+            />
+          )}
         </Panel>
+
+        <CompanionPanel multiplayer={multiplayer} />
 
         {denInside ? null : (
           <Panel accent="#7ea9c2">

@@ -1,3 +1,5 @@
+import type { RealtimeChannel } from "@supabase/supabase-js";
+import { supabase } from "@/integrations/supabase/client";
 import type {
   DenKeepsake,
   DenMaterial,
@@ -9,6 +11,7 @@ import type {
   WeatherKind,
   WorldState,
 } from "./types";
+import type { PlacementRow, WorldStateRow } from "./multiplayer-types";
 import { WORLD_HEIGHT, WORLD_WIDTH } from "./world";
 
 const STORAGE_KEY = "spor.world.v1";
@@ -39,12 +42,22 @@ function emptyWorld(): WorldState {
  * It is deliberately free of React and of any storage assumption beyond a
  * pluggable load/save, so it can later be backed by a multiplayer sync layer
  * or an offline database instead of localStorage.
+ *
+ * Once bindRemote() is called (a signed-in, paired account), every mutation
+ * below also writes through to Supabase and a Postgres Changes subscription
+ * feeds the companion's changes back in. Unpaired play is untouched — those
+ * writes simply never happen and everything stays on localStorage, as before.
  */
 class WorldEngine {
   state: WorldState = emptyWorld();
   private listeners = new Set<() => void>();
   private saveTimer: ReturnType<typeof setTimeout> | null = null;
   private loaded = false;
+  private pairingId: string | null = null;
+  private myUserId: string | null = null;
+  private roleByUserId: Record<string, ParticipantId> = {};
+  private remoteChannel: RealtimeChannel | null = null;
+  private knownPlacementIds = new Set<string>();
 
   load() {
     if (this.loaded || typeof window === "undefined") return;
@@ -92,6 +105,107 @@ class WorldEngine {
     }
   }
 
+  // ---- multiplayer sync (only active once a signed-in, paired account calls this) ----
+
+  /**
+   * `roleByUserId` maps both accounts in the pairing to "elder"/"child" so
+   * incoming rows (stamped with a Supabase user id) can be shown as the
+   * right fox — the caller (useMultiplayerSync) builds this from
+   * getMyPairing()'s inviterId/companionId.
+   */
+  async bindRemote(pairingId: string, myUserId: string, roleByUserId: Record<string, ParticipantId>) {
+    if (this.pairingId === pairingId) return;
+    this.unbindRemote();
+    this.pairingId = pairingId;
+    this.myUserId = myUserId;
+    this.roleByUserId = roleByUserId;
+
+    const [worldRow, placementRows] = await Promise.all([
+      supabase.from("world_state" as never).select("*").eq("pairing_id", pairingId).maybeSingle(),
+      supabase.from("placements" as never).select("*").eq("pairing_id", pairingId).order("at", { ascending: true }),
+    ]);
+
+    if (worldRow.data) this.applyWorldStateRow(worldRow.data as unknown as WorldStateRow);
+    if (placementRows.data) {
+      const rows = placementRows.data as unknown as PlacementRow[];
+      this.state.placements = rows.map((row) => this.placementFromRow(row));
+      this.knownPlacementIds = new Set(this.state.placements.map((item) => item.id));
+    }
+    this.emit();
+
+    this.remoteChannel = supabase
+      .channel(`pairing:${pairingId}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "placements", filter: `pairing_id=eq.${pairingId}` },
+        (payload) => {
+          const row = payload.new as unknown as PlacementRow;
+          if (this.knownPlacementIds.has(row.id)) return;
+          this.knownPlacementIds.add(row.id);
+          this.state.placements.push(this.placementFromRow(row));
+          this.emit();
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "world_state", filter: `pairing_id=eq.${pairingId}` },
+        (payload) => {
+          this.applyWorldStateRow(payload.new as unknown as WorldStateRow);
+          this.emit();
+        },
+      )
+      .subscribe();
+  }
+
+  unbindRemote() {
+    if (this.remoteChannel) {
+      void supabase.removeChannel(this.remoteChannel);
+      this.remoteChannel = null;
+    }
+    this.pairingId = null;
+    this.myUserId = null;
+    this.roleByUserId = {};
+  }
+
+  private roleFor(userId: string): ParticipantId {
+    return this.roleByUserId[userId] ?? "elder";
+  }
+
+  private applyWorldStateRow(row: WorldStateRow) {
+    this.state.weather = {
+      kind: row.weather_kind,
+      by: row.weather_by ? this.roleFor(row.weather_by) : "elder",
+      at: new Date(row.weather_at).getTime(),
+    };
+    this.state.den = { ...emptyDen(), ...row.den };
+  }
+
+  private placementFromRow(row: PlacementRow): Placement {
+    return {
+      id: row.id,
+      kind: row.kind,
+      x: row.x,
+      y: row.y,
+      variant: row.variant,
+      by: this.roleFor(row.by),
+      at: new Date(row.at).getTime(),
+    };
+  }
+
+  private pushWorldState() {
+    if (!this.pairingId || !this.myUserId) return;
+    void supabase
+      .from("world_state" as never)
+      .update({
+        weather_kind: this.state.weather.kind,
+        weather_by: this.myUserId,
+        weather_at: new Date(this.state.weather.at).toISOString(),
+        den: this.state.den,
+        updated_at: new Date().toISOString(),
+      } as never)
+      .eq("pairing_id", this.pairingId);
+  }
+
   position(participant: ParticipantId) {
     return this.state.positions[participant];
   }
@@ -124,12 +238,25 @@ class WorldEngine {
       this.state.placements.splice(0, this.state.placements.length - PLACEMENT_LIMIT);
     }
     this.emit();
+    if (this.pairingId && this.myUserId) {
+      this.knownPlacementIds.add(placement.id);
+      void supabase.from("placements" as never).insert({
+        id: placement.id,
+        pairing_id: this.pairingId,
+        kind: placement.kind,
+        x: placement.x,
+        y: placement.y,
+        variant: placement.variant,
+        by: this.myUserId,
+      } as never);
+    }
     return placement;
   }
 
   setWeather(kind: WeatherKind, by: ParticipantId) {
     this.state.weather = { kind, by, at: Date.now() };
     this.emit();
+    this.pushWorldState();
   }
 
   markSeen(id: string) {
@@ -145,6 +272,7 @@ class WorldEngine {
     if (this.state.den.discovered) return false;
     this.state.den.discovered = true;
     this.emit();
+    this.pushWorldState();
     return true;
   }
 
@@ -152,6 +280,7 @@ class WorldEngine {
   restInDen() {
     this.state.den.rests += 1;
     this.emit();
+    this.pushWorldState();
     return this.state.den.rests;
   }
 
@@ -167,6 +296,7 @@ class WorldEngine {
       angle: Math.random() * Math.PI,
     });
     this.emit();
+    this.pushWorldState();
     return this.state.den.bedding.length;
   }
 
@@ -175,6 +305,7 @@ class WorldEngine {
     if (this.state.den.keepsakes.some((entry) => entry.nicheId === nicheId)) return false;
     this.state.den.keepsakes.push({ nicheId, item, by, at: Date.now() });
     this.emit();
+    this.pushWorldState();
     return true;
   }
 
@@ -185,6 +316,7 @@ class WorldEngine {
   setInvitation(path: Array<{ x: number; y: number }>, by: ParticipantId) {
     this.state.den.invitation = { by, at: Date.now(), path };
     this.emit();
+    this.pushWorldState();
   }
 
   /** Anything another participant left since the given moment. */
