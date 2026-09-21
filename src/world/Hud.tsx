@@ -223,7 +223,6 @@ function CarryBadge({ carried }: { carried: Carried }) {
  * gets a little text, the same way the nature journal panel already does.
  */
 function CompanionPanel({ multiplayer }: { multiplayer: MultiplayerStatus }) {
-  console.log("MP panel", JSON.stringify(multiplayer));
   const [copied, setCopied] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [inviteCode, setInviteCode] = useState<string | null>(null);
@@ -317,7 +316,6 @@ function CompanionPanel({ multiplayer }: { multiplayer: MultiplayerStatus }) {
 }
 
 export function Hud({ multiplayer }: { multiplayer: MultiplayerStatus }) {
-  console.log("MP hud", JSON.stringify(multiplayer));
   const {
     participant,
     tool,
