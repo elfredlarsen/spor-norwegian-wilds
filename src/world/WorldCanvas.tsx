@@ -844,7 +844,7 @@ export function WorldCanvas() {
         const request = ui.denRequest.kind;
         audio.init();
         if (request === "enter" && atDenMouth) {
-          worldEngine.discoverDen(participant);
+          worldEngine.discoverDen();
           denFox = { x: DEN_EXIT.x, y: DEN_EXIT.y - 70 };
           denWalkTarget = null;
           ui.setDenInside(true);
