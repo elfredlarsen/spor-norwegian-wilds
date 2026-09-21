@@ -769,6 +769,11 @@ export function WorldCanvas() {
       last = now;
 
       const ui = useUiStore.getState();
+      if (ui.denInside) {
+        denFrame(now, delta);
+        return;
+      }
+      audio.setShelter(0);
       const participant: ParticipantId = ui.participant;
       const position = worldEngine.position(participant);
 
