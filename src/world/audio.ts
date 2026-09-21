@@ -4,23 +4,47 @@ type Layer = { gain: GainNode; filter: BiquadFilterNode; target: number };
 type FootstepSurface = "moss" | "gravel" | "wet" | "water";
 type NoiseColour = "white" | "pink" | "brown";
 
-/** A fully procedural, offline soundscape built from gentle filtered noise and resonant tones. */
+const AMBIENCE_SRC = {
+  wind: "/audio/ambience/wind.mp3",
+  windCalm: "/audio/ambience/wind_calm.mp3",
+  rain: "/audio/ambience/rain.mp3",
+  stream: "/audio/ambience/stream.mp3",
+  birds: "/audio/ambience/birds.mp3",
+};
+
+const FOOTSTEP_SURFACE_FOLDER: Record<FootstepSurface, string> = {
+  moss: "grass",
+  gravel: "gravel",
+  wet: "mud",
+  water: "water",
+};
+const FOOTSTEP_VARIATIONS = 6;
+
+/** A soundscape built from real field recordings for weather and footsteps, layered
+ * with a little procedural synthesis (foley accents, chimes) for moments the library
+ * doesn't cover. */
 class ForestAudio {
   private context: AudioContext | null = null;
   private master: GainNode | null = null;
   private ambience: GainNode | null = null;
   private ambienceFilter: BiquadFilterNode | null = null;
-  private wind: Layer[] = [];
-  private water: Layer[] = [];
-  private rain: Layer[] = [];
-  private mist: Layer | null = null;
+  private wind: Layer | null = null;
+  private windCalm: Layer | null = null;
+  private water: Layer | null = null;
+  private rain: Layer | null = null;
+  private birds: Layer | null = null;
   private muted = false;
   private volume = 0.45;
   private weather: WeatherKind = "clear";
   private waterNearness = 0;
   private shelter = 0;
   private warmth = 0;
+  private daylight = 1;
+  private birdActivity = 1;
   private bubbleTimer: number | null = null;
+  private bufferCache = new Map<string, Promise<AudioBuffer | null>>();
+  private footstepBuffers: Partial<Record<FootstepSurface, AudioBuffer[]>> = {};
+  private ambienceLoaded = false;
 
   init() {
     if (typeof window === "undefined") return;
@@ -54,28 +78,61 @@ class ForestAudio {
     this.ambience = ambience;
     this.ambienceFilter = ambienceFilter;
 
-    this.wind = [
-      this.makeNoiseLayer("brown", "lowpass", 240, 0.042, 0.08),
-      this.makeNoiseLayer("pink", "bandpass", 760, 0.025, 0.22),
-      this.makeNoiseLayer("pink", "bandpass", 1850, 0.011, 0.35),
-    ].filter((layer): layer is Layer => layer !== null);
-    this.water = [
-      this.makeNoiseLayer("brown", "bandpass", 520, 0.006, 0.55),
-      this.makeNoiseLayer("pink", "bandpass", 1450, 0.004, 0.8),
-      this.makeNoiseLayer("white", "highpass", 3200, 0.0015, 0.4),
-    ].filter((layer): layer is Layer => layer !== null);
-    this.rain = [
-      this.makeNoiseLayer("pink", "bandpass", 2100, 0, 0.55),
-      this.makeNoiseLayer("white", "highpass", 5200, 0, 0.35),
-      this.makeNoiseLayer("brown", "lowpass", 340, 0, 0.5),
-    ].filter((layer): layer is Layer => layer !== null);
-    this.mist = this.makeNoiseLayer("brown", "lowpass", 115, 0, 0.5);
-    this.addOrganicGust(this.wind[0] ?? null, 0.012, 0.07);
-    this.addOrganicGust(this.wind[1] ?? null, 0.007, 0.043, 0.061);
-    this.applyWeather(0.15);
-    this.applyWaterNearness(0.15);
     master.gain.setTargetAtTime(this.muted ? 0 : this.volume, context.currentTime, 0.22);
     this.scheduleBubble();
+    void this.loadAmbienceBeds();
+    void this.loadFootstepBuffers();
+  }
+
+  private async loadBuffer(url: string): Promise<AudioBuffer | null> {
+    const context = this.context;
+    if (!context) return null;
+    let pending = this.bufferCache.get(url);
+    if (!pending) {
+      pending = fetch(url)
+        .then((response) => response.arrayBuffer())
+        .then((data) => context.decodeAudioData(data))
+        .catch(() => null);
+      this.bufferCache.set(url, pending);
+    }
+    return pending;
+  }
+
+  private async loadAmbienceBeds() {
+    const context = this.context;
+    if (!context) return;
+    const [wind, windCalm, rain, stream, birds] = await Promise.all([
+      this.loadBuffer(AMBIENCE_SRC.wind),
+      this.loadBuffer(AMBIENCE_SRC.windCalm),
+      this.loadBuffer(AMBIENCE_SRC.rain),
+      this.loadBuffer(AMBIENCE_SRC.stream),
+      this.loadBuffer(AMBIENCE_SRC.birds),
+    ]);
+    if (this.context !== context) return; // torn down while loading
+    if (wind) this.wind = this.makeSampleLayer(wind, "lowpass", 12000, 0);
+    if (windCalm) this.windCalm = this.makeSampleLayer(windCalm, "lowpass", 900, 0);
+    if (rain) this.rain = this.makeSampleLayer(rain, "lowpass", 12000, 0);
+    if (stream) this.water = this.makeSampleLayer(stream, "lowpass", 430, 0);
+    if (birds) this.birds = this.makeSampleLayer(birds, "lowpass", 12000, 0);
+    this.ambienceLoaded = true;
+    this.applyWeather(1.2);
+    this.applyWaterNearness(1.2);
+    this.applyAmbient(1.2);
+  }
+
+  private async loadFootstepBuffers() {
+    const context = this.context;
+    if (!context) return;
+    for (const [surface, folder] of Object.entries(FOOTSTEP_SURFACE_FOLDER) as [FootstepSurface, string][]) {
+      const buffers = await Promise.all(
+        Array.from({ length: FOOTSTEP_VARIATIONS }, (_, index) =>
+          this.loadBuffer(`/audio/footsteps/${folder}/${String(index + 1).padStart(2, "0")}.wav`),
+        ),
+      );
+      if (this.context !== context) return;
+      const loaded = buffers.filter((buffer): buffer is AudioBuffer => buffer !== null);
+      if (loaded.length) this.footstepBuffers[surface] = loaded;
+    }
   }
 
   private noiseBuffer(colour: NoiseColour) {
@@ -103,17 +160,16 @@ class ForestAudio {
     return buffer;
   }
 
-  private makeNoiseLayer(
-    colour: NoiseColour,
+  private makeSampleLayer(
+    buffer: AudioBuffer,
     filterType: BiquadFilterType,
     frequency: number,
     gainValue: number,
-    q: number,
+    q = 0.4,
   ): Layer | null {
     const context = this.context;
     const ambience = this.ambience;
-    const buffer = this.noiseBuffer(colour);
-    if (!context || !ambience || !buffer) return null;
+    if (!context || !ambience) return null;
     const source = context.createBufferSource();
     const filter = context.createBiquadFilter();
     const gain = context.createGain();
@@ -130,27 +186,6 @@ class ForestAudio {
     return { gain, filter, target: gainValue };
   }
 
-  private addOrganicGust(layer: Layer | null, depth: number, speed: number, secondSpeed = 0.037) {
-    const context = this.context;
-    if (!context || !layer) return;
-    const lfo = context.createOscillator();
-    const wander = context.createOscillator();
-    const lfoGain = context.createGain();
-    const wanderGain = context.createGain();
-    lfo.type = "sine";
-    wander.type = "sine";
-    lfo.frequency.value = speed;
-    wander.frequency.value = secondSpeed;
-    lfoGain.gain.value = depth;
-    wanderGain.gain.value = depth * 0.45;
-    lfo.connect(lfoGain);
-    wander.connect(wanderGain);
-    lfoGain.connect(layer.gain.gain);
-    wanderGain.connect(layer.gain.gain);
-    lfo.start();
-    wander.start();
-  }
-
   private ramp(layer: Layer | null, value: number, time = 1.4) {
     if (!this.context || !layer) return;
     layer.target = value;
@@ -159,12 +194,10 @@ class ForestAudio {
 
   private applyWeather(time = 1.4) {
     const indoors = 1 - this.shelter * 0.74;
-    const wind = this.weather === "mist" ? [0.014, 0.008, 0.002] : this.weather === "sun" ? [0.03, 0.018, 0.006] : [0.042, 0.025, 0.011];
-    this.wind.forEach((layer, index) => this.ramp(layer, (wind[index] ?? 0) * indoors, time));
-    // rain overhead keeps a soft low rumble on the roots, so the low band stays
-    const rain = this.weather === "rain" ? [0.026 * indoors, 0.016 * indoors, 0.014 * (1 + this.shelter * 0.5)] : [0, 0, 0];
-    this.rain.forEach((layer, index) => this.ramp(layer, rain[index] ?? 0, time));
-    this.ramp(this.mist, this.weather === "mist" ? 0.025 : 0, this.weather === "mist" ? 2.8 : 1.8);
+    // a hushed, muffled bed while misty; the fuller forest wind otherwise
+    this.ramp(this.wind, this.weather === "mist" || this.weather === "rain" ? 0 : 0.05 * indoors, time);
+    this.ramp(this.windCalm, this.weather === "mist" ? 0.055 * indoors : 0, this.weather === "mist" ? 2.8 : 1.8);
+    this.ramp(this.rain, this.weather === "rain" ? 0.075 * indoors : 0, time);
     if (this.context && this.ambienceFilter) {
       const open = this.weather === "mist" ? 720 : this.weather === "rain" ? 7200 : 12000;
       const sheltered = 620 - this.warmth * 180;
@@ -203,25 +236,30 @@ class ForestAudio {
 
   private applyWaterNearness(time = 0.45) {
     const closeness = this.waterNearness;
-    const rainFullness = this.weather === "rain" ? 1.35 : 1;
+    const rainFullness = this.weather === "rain" ? 1.3 : 1;
     const indoors = 1 - this.shelter * 0.8;
-    const levels = [
-      (0.0015 + closeness * 0.03) * indoors,
-      (0.0006 + closeness * 0.024) * indoors,
-      closeness * 0.01 * indoors,
-    ];
-    this.water.forEach((layer, index) => {
-      this.ramp(layer, (levels[index] ?? 0) * rainFullness, time);
-      if (this.context) {
-        const farCutoff = index === 0 ? 430 : index === 1 ? 680 : 1200;
-        const nearCutoff = index === 0 ? 850 : index === 1 ? 2300 : 5600;
-        layer.filter.frequency.setTargetAtTime(
-          farCutoff + (nearCutoff - farCutoff) * closeness,
-          this.context.currentTime,
-          time,
-        );
-      }
-    });
+    this.ramp(this.water, closeness * 0.09 * indoors * rainFullness, time);
+    if (this.context && this.water) {
+      this.water.filter.frequency.setTargetAtTime(430 + (2400 - 430) * closeness, this.context.currentTime, time);
+    }
+  }
+
+  /** How bright the day is (0 night, 1 midday) and how active the birds are this season. */
+  setAmbient(daylight: number, birdActivity: number) {
+    const nextDaylight = Math.min(1, Math.max(0, daylight));
+    const nextActivity = Math.min(1, Math.max(0, birdActivity));
+    if (Math.abs(nextDaylight - this.daylight) < 0.015 && Math.abs(nextActivity - this.birdActivity) < 0.02) return;
+    this.daylight = nextDaylight;
+    this.birdActivity = nextActivity;
+    this.applyAmbient();
+  }
+
+  private applyAmbient(time = 2.2) {
+    const indoors = 1 - this.shelter;
+    // birdsong settles in by mid-morning and fades before dusk, only when weather is calm
+    const calm = this.weather === "sun" || this.weather === "clear" ? 1 : this.weather === "mist" ? 0.4 : 0.1;
+    const level = Math.max(0, this.daylight - 0.15) * this.birdActivity * calm * indoors * 0.05;
+    this.ramp(this.birds, level, time);
   }
 
   private scheduleBubble() {
@@ -251,6 +289,7 @@ class ForestAudio {
   setWeather(kind: WeatherKind) {
     this.weather = kind;
     this.applyWeather();
+    this.applyAmbient();
   }
 
   /** Nearness to the stream, 0..1. */
@@ -322,8 +361,22 @@ class ForestAudio {
     this.softTone(base * 1.32, 0.11, 0.003 + this.waterNearness * 0.004, "sine", 0.07);
   }
 
-  footstep(surface: FootstepSurface, pace = 0.5) {
-    const strength = 0.8 + Math.min(1, Math.max(0, pace)) * 0.35;
+  private playFootstepSample(buffer: AudioBuffer, volume: number) {
+    const context = this.context;
+    const master = this.master;
+    if (!context || !master || this.muted) return;
+    const source = context.createBufferSource();
+    const gain = context.createGain();
+    source.buffer = buffer;
+    source.playbackRate.value = 0.94 + Math.random() * 0.14;
+    gain.gain.value = volume;
+    source.connect(gain);
+    gain.connect(master);
+    source.start();
+  }
+
+  /** Falls back to a synthesized thud if the real sample library hasn't loaded yet. */
+  private footstepSynth(surface: FootstepSurface, strength: number) {
     if (surface === "water") {
       this.noiseBurst("pink", 1150, 0.14, 0.014 * strength);
       this.softTone(175, 0.16, 0.012 * strength);
@@ -337,6 +390,19 @@ class ForestAudio {
       this.noiseBurst("brown", 310, 0.11, 0.014, "lowpass");
       this.softTone(72, 0.12, 0.01);
     }
+  }
+
+  footstep(surface: FootstepSurface, pace = 0.5) {
+    const strength = 0.8 + Math.min(1, Math.max(0, pace)) * 0.35;
+    const variations = this.footstepBuffers[surface];
+    if (variations?.length) {
+      const buffer = variations[Math.floor(Math.random() * variations.length)];
+      if (buffer) {
+        this.playFootstepSample(buffer, 0.32 * strength);
+        return;
+      }
+    }
+    this.footstepSynth(surface, strength);
   }
 
   sniff() {

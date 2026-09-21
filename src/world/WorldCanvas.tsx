@@ -1049,6 +1049,7 @@ export function WorldCanvas() {
       // ---- draw ----
       const cycle = currentCycle();
       const seasonPalette = SEASON_PALETTE[cycle.season];
+      audio.setAmbient(cycle.daylight, seasonPalette.birdActivity);
       ctx.clearRect(0, 0, viewWidth, viewHeight);
       // layer one: the painted backdrop
       drawBackdrop(ctx, cameraX, cameraY, viewWidth, viewHeight, cycle);
