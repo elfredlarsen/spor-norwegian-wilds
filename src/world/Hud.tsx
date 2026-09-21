@@ -326,7 +326,7 @@ export function Hud() {
 
   return (
     <div className="pointer-events-none absolute inset-0 z-10 select-none font-[var(--font-display)] text-[#e7e4d8]">
-      <div className="absolute left-4 top-4 flex flex-col gap-2">
+      <div className={`absolute left-4 top-4 flex flex-col gap-2 ${quiet}`}>
         <Panel>
           <IconButton
             Icon={PawPrint}
@@ -358,7 +358,7 @@ export function Hud() {
         )}
       </div>
 
-      <div className="absolute bottom-4 left-4 flex flex-col gap-2">
+      <div className={`absolute bottom-4 left-4 flex flex-col gap-2 ${quiet}`}>
         <Panel>
           <div className="flex gap-1">
             {SENSES.map((item) => (
@@ -435,7 +435,7 @@ export function Hud() {
         )}
       </div>
 
-      <div className="absolute bottom-4 right-4 flex flex-col items-end gap-3">
+      <div className={`absolute bottom-4 right-4 flex flex-col items-end gap-3 ${journalOpen ? "opacity-100" : quiet}`}>
         <Panel>
           <IconButton
             Icon={Feather}
@@ -519,18 +519,7 @@ export function Hud() {
         <Hand className="size-6" strokeWidth={1.4} />
       </div>
 
-      {note ? (
-        <div className="pointer-events-none absolute bottom-3 left-1/2 max-w-[70vw] -translate-x-1/2 px-3 text-center text-xs text-[#e7e4d8]/55 drop-shadow-[0_1px_4px_rgba(0,0,0,0.6)] transition-opacity duration-700 md:bottom-auto md:top-4">
-          <span className="text-[#f4f1e6]/80">{note.title}</span>
-          <span className="italic text-[#e7e4d8]/45"> · {note.norwegian}</span>
-        </div>
-      ) : null}
 
-      {discovery ? (
-        <div className="absolute right-4 top-4 w-44 rounded-2xl border border-white/10 bg-[#1d2620]/70 px-4 py-3 text-center text-sm text-[#f0ecdf] shadow-lg backdrop-blur-md md:left-1/2 md:right-auto md:top-16 md:w-72 md:-translate-x-1/2">
-          {discovery}
-        </div>
-      ) : null}
     </div>
   );
 }
