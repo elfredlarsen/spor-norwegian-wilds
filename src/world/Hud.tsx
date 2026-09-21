@@ -155,7 +155,7 @@ export function Hud() {
       position.y + offset * 0.8,
       participant,
     );
-    audio.chime(tool === "lantern" ? 392 : tool === "flower" ? 523.25 : 293.66);
+    audio.placement(tool);
   };
 
   const switchParticipant = () => {
@@ -166,6 +166,7 @@ export function Hud() {
     lastVisit.current[participant] = Date.now();
     setParticipant(next);
     if (traces.length > 0) {
+      audio.discoveryResonance();
       setDiscovery(
         `Something was left here while you were away — ${traces.length} new ${
           traces.length === 1 ? "trace" : "traces"
