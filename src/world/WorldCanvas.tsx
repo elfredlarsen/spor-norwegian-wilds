@@ -591,13 +591,177 @@ export function WorldCanvas() {
     const onPointerDown = (event: PointerEvent) => {
       audio.init();
       const rect = canvas.getBoundingClientRect();
-      walkTarget = {
-        x: cameraX + (event.clientX - rect.left),
-        y: cameraY + (event.clientY - rect.top),
-      };
+      const pointerX = event.clientX - rect.left;
+      const pointerY = event.clientY - rect.top;
+      if (useUiStore.getState().denInside) {
+        denWalkTarget = {
+          x: (pointerX - denView.offsetX) / denView.scale,
+          y: (pointerY - denView.offsetY) / denView.scale,
+        };
+      } else {
+        walkTarget = { x: cameraX + pointerX, y: cameraY + pointerY };
+      }
       useUiStore.getState().markHintSeen();
     };
     canvas.addEventListener("pointerdown", onPointerDown);
+
+    const readInput = () => {
+      let inputX = 0;
+      let inputY = 0;
+      if (keys["arrowleft"] || keys["a"]) inputX -= 1;
+      if (keys["arrowright"] || keys["d"]) inputX += 1;
+      if (keys["arrowup"] || keys["w"]) inputY -= 1;
+      if (keys["arrowdown"] || keys["s"]) inputY += 1;
+      inputX += padRef.current.x;
+      inputY += padRef.current.y;
+      return { inputX, inputY };
+    };
+
+    /** Inside the den: a small, quiet, sheltered room of its own. */
+    const denFrame = (now: number, delta: number) => {
+      const ui = useUiStore.getState();
+      const participant: ParticipantId = ui.participant;
+      const den = worldEngine.state.den;
+      const warmth = Math.min(1, den.bedding.length / 6);
+      audio.setShelter(1, warmth);
+
+      let { inputX, inputY } = readInput();
+      if (!inputX && !inputY && denWalkTarget) {
+        const dx = denWalkTarget.x - denFox.x;
+        const dy = denWalkTarget.y - denFox.y;
+        const distance = Math.hypot(dx, dy);
+        if (distance < 10) denWalkTarget = null;
+        else {
+          inputX = dx / distance;
+          inputY = dy / distance;
+        }
+      }
+      const magnitude = Math.hypot(inputX, inputY);
+      if (magnitude > 1) {
+        inputX /= magnitude;
+        inputY /= magnitude;
+      }
+
+      // requests from the quiet icon bar
+      if (ui.denRequest && ui.denRequest.nonce !== lastDenNonce) {
+        lastDenNonce = ui.denRequest.nonce;
+        const request = ui.denRequest.kind;
+        audio.init();
+        if (request === "exit") {
+          ui.setDenInside(false);
+          ui.setNearNiche(false);
+          audio.setShelter(0, warmth);
+          denWalkTarget = null;
+        } else if (request === "deposit" && ui.carried) {
+          const carried = ui.carried;
+          if (carried.category === "bedding") {
+            worldEngine.addBedding(carried.kind, participant);
+            audio.bedding();
+            ui.setDiscovery(null);
+          } else {
+            const niche = nearestNiche(denFox.x, denFox.y, 120);
+            const free = niche && !worldEngine.keepsakeAt(niche.id) ? niche : null;
+            if (free) {
+              worldEngine.placeKeepsake(free.id, carried.kind, participant);
+              audio.keepsake();
+            }
+          }
+          if (carried.category === "bedding" || nearestNiche(denFox.x, denFox.y, 120)) ui.setCarried(null);
+        } else if (request === "invite") {
+          const guest: ParticipantId = participant === "elder" ? "child" : "elder";
+          const guestPosition = worldEngine.state.positions[guest];
+          worldEngine.setInvitation(invitationPath(guestPosition.x, guestPosition.y), participant);
+          audio.sniff();
+          audio.discoveryResonance();
+        }
+        ui.clearDenRequest();
+      }
+
+      if (ui.senseRequest && ui.senseRequest.nonce !== lastSenseNonce) {
+        lastSenseNonce = ui.senseRequest.nonce;
+        denActionKind = ui.senseRequest.kind;
+        denActionUntil = now + (denActionKind === "rest" ? 6000 : 2600);
+        denWalkTarget = null;
+        audio.init();
+        if (denActionKind === "rest") {
+          worldEngine.restInDen();
+          audio.rest();
+        } else if (denActionKind === "sniff") audio.sniff();
+        else if (denActionKind === "dig") audio.dig();
+        else audio.sip();
+        ui.clearSenseRequest();
+      }
+
+      const resting = now < denActionUntil;
+      const speed = resting ? 0 : 92;
+      const moving = !resting && (Math.abs(inputX) > 0.01 || Math.abs(inputY) > 0.01);
+      if (moving) {
+        const next = clampInsideDen(denFox.x + inputX * speed * delta, denFox.y + inputY * speed * delta);
+        denFox = next;
+        const heading = Math.atan2(inputY, inputX);
+        let difference = heading - denAngle;
+        while (difference > Math.PI) difference -= Math.PI * 2;
+        while (difference < -Math.PI) difference += Math.PI * 2;
+        denAngle += difference * (1 - Math.exp(-9 * delta));
+        gait += delta * 8;
+        denSinceFootstep += speed * delta;
+        if (denSinceFootstep > 34) {
+          denSinceFootstep = 0;
+          audio.footstep("moss", 0.35);
+        }
+      } else {
+        gait += delta * 1.2;
+      }
+
+      const niche = nearestNiche(denFox.x, denFox.y, 110);
+      const nicheFree = Boolean(niche && !worldEngine.keepsakeAt(niche.id));
+      if (ui.nearNiche !== nicheFree) ui.setNearNiche(nicheFree);
+      const atMouth = Math.hypot(denFox.x - DEN_EXIT.x, denFox.y - DEN_EXIT.y) < 90;
+      if (ui.nearDen !== atMouth) ui.setNearDen(atMouth);
+
+      // ---- draw ----
+      const viewWidth = window.innerWidth;
+      const viewHeight = window.innerHeight;
+      ctx.clearRect(0, 0, viewWidth, viewHeight);
+      ctx.fillStyle = "#13100c";
+      ctx.fillRect(0, 0, viewWidth, viewHeight);
+      const scale = Math.min(viewWidth / DEN_WIDTH, viewHeight / DEN_HEIGHT) * 0.96;
+      denView = {
+        scale,
+        offsetX: (viewWidth - DEN_WIDTH * scale) / 2,
+        offsetY: (viewHeight - DEN_HEIGHT * scale) / 2,
+      };
+      ctx.save();
+      ctx.translate(denView.offsetX, denView.offsetY);
+      ctx.scale(scale, scale);
+      drawDenInterior(ctx, den, now, warmth);
+      drawFox(
+        ctx,
+        denFox.x,
+        denFox.y,
+        denAngle,
+        gait,
+        moving,
+        participant === "child" ? "#c9743a" : "#b75c32",
+        resting ? denActionKind : null,
+      );
+      ctx.restore();
+
+      // softened edges: the room feels sheltered
+      const edges = ctx.createRadialGradient(
+        viewWidth / 2,
+        viewHeight / 2,
+        Math.min(viewWidth, viewHeight) * 0.22,
+        viewWidth / 2,
+        viewHeight / 2,
+        Math.max(viewWidth, viewHeight) * 0.68,
+      );
+      edges.addColorStop(0, "rgba(18, 14, 10, 0)");
+      edges.addColorStop(1, "rgba(14, 11, 8, 0.92)");
+      ctx.fillStyle = edges;
+      ctx.fillRect(0, 0, viewWidth, viewHeight);
+    };
+
 
     const frame = (now: number) => {
       raf = requestAnimationFrame(frame);
