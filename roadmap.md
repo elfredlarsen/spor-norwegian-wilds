@@ -25,3 +25,5 @@
 - [ ] Seasonal change affecting vegetation, finds and animal behaviour
 - [x] Automatic saving of finds, discoveries and world changes (already in the engine)
 - [ ] Move the nature-note box out of the way at the bottom centre
+- [ ] Remove superfluous fixed UI, keep only necessary controls
+- [ ] Discreet wordless reactions on click and movement
