@@ -185,9 +185,9 @@ function drawTree(ctx: CanvasRenderingContext2D, feature: Feature, time: number,
     ctx.ellipse(0, 0, 7 * feature.scale, 5 * feature.scale, 0, 0, Math.PI * 2);
     ctx.fill();
     const layers = [
-      { r: 40, c: "#2f4732", a: 0.95 },
-      { r: 29, c: "#3a5639", a: 1 },
-      { r: 18, c: "#47653f", a: 1 },
+      { r: 40, c: palette.pine[0], a: 0.95 },
+      { r: 29, c: palette.pine[1], a: 1 },
+      { r: 18, c: palette.pine[2], a: 1 },
     ];
     for (const layer of layers) {
       ctx.fillStyle = layer.c;
