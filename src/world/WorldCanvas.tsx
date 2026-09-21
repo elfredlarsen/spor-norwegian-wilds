@@ -630,7 +630,7 @@ export function WorldCanvas() {
           const ty = target?.y ?? position.y + 220;
           for (let index = 1; index <= 12; index += 1) scents.push({ x: position.x + (tx - position.x) * index / 13, y: position.y + (ty - position.y) * index / 13, born: now, phase: random() * 6 });
           ui.setDiscovery(target ? "A quiet scent lingers between the trees." : "Cool water and bilberry drift on the air.");
-          audio.chime(440);
+          audio.sniff();
         } else if (actionKind === "drink") {
           if (nearWaterBank) {
             ripples.push({ x: streamCenter(position.y), y: position.y, born: now, strength: 1.3 });
@@ -680,7 +680,8 @@ export function WorldCanvas() {
             by: participant,
             at: Date.now(),
           });
-          audio.footstep(depth > 0.15);
+          const gravel = nearestFeature(resolved.x, resolved.y, 52)?.kind === "rock";
+          audio.footstep(depth > 0.15 ? "water" : gravel ? "gravel" : "moss");
         }
       } else {
         gait += delta * 1.4;

@@ -10,3 +10,5 @@
 - [x] Contextual sniff, drink, and gentle digging actions
 - [x] Glowing berry trails and responsive cairns
 - [x] Verify new interactions on desktop and mobile
+- [x] Enriched procedural Nordic soundscape and tactile surface audio
+- [ ] Verify audio controls and action triggers
