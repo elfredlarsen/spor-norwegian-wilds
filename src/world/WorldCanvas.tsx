@@ -1001,10 +1001,20 @@ export function WorldCanvas() {
       }
 
       // ---- draw ----
+      const cycle = currentCycle();
+      const seasonPalette = SEASON_PALETTE[cycle.season];
       ctx.clearRect(0, 0, viewWidth, viewHeight);
+      // layer one: the painted backdrop
+      drawBackdrop(ctx, cameraX, cameraY, viewWidth, viewHeight, cycle);
       ctx.save();
       ctx.translate(-Math.round(cameraX), -Math.round(cameraY));
       ctx.drawImage(ground, 0, 0);
+      // the floor takes on the colour of the season
+      ctx.save();
+      ctx.globalAlpha = seasonPalette.groundAlpha;
+      ctx.fillStyle = seasonPalette.ground;
+      ctx.fillRect(cameraX - 20, cameraY - 20, viewWidth + 40, viewHeight + 40);
+      ctx.restore();
 
       const state = worldEngine.state;
       const now2 = Date.now();
