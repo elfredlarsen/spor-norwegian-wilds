@@ -421,8 +421,14 @@ function drawFox(
   sensing: "sniff" | "drink" | "dig" | "rest" | null,
 ) {
   const appearance = participant === "elder"
-    ? { coat: "#b9532f", warm: "#d97843", cream: "#f3dfbd", dark: "#422d28", innerEar: "#73403a", scale: 1.06 }
-    : { coat: "#dc8646", warm: "#eca45f", cream: "#fff0cf", dark: "#50332d", innerEar: "#8b5148", scale: 0.94 };
+    ? {
+        coat: "#b9532f", warm: "#d97843", cream: "#f3dfbd", dark: "#422d28", innerEar: "#73403a",
+        scale: 1.06, headW: 9.2, headL: 8.2, earScale: 1.0, snoutL: 18.5, cheekR: 8, eyeScale: 1.0,
+      }
+    : {
+        coat: "#dc8646", warm: "#eca45f", cream: "#fff0cf", dark: "#50332d", innerEar: "#8b5148",
+        scale: 0.94, headW: 8.4, headL: 7.2, earScale: 1.08, snoutL: 16.5, cheekR: 9, eyeScale: 1.12,
+      };
 
   ctx.save();
   ctx.translate(x, y);
