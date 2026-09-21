@@ -20,10 +20,10 @@
 - [x] Rename participants to Fox 1 / Fox 2
 - [x] Wordless, icon-based navigation usable without reading
 - [x] Verify the den on desktop and mobile
-- [ ] Picture-book aesthetic in three layers (background, middle, foreground)
-- [ ] Real day cycle and weather progression
-- [ ] Seasonal change affecting vegetation, finds and animal behaviour
+- [x] Picture-book aesthetic in three layers (background, middle, foreground)
+- [x] Real day cycle and weather progression
+- [x] Seasonal change affecting vegetation, finds and animal behaviour
 - [x] Automatic saving of finds, discoveries and world changes (already in the engine)
-- [ ] Move the nature-note box out of the way at the bottom centre
-- [ ] Remove superfluous fixed UI, keep only necessary controls
-- [ ] Discreet wordless reactions on click and movement
+- [x] Move the nature-note box out of the way at the bottom centre
+- [x] Remove superfluous fixed UI, keep only necessary controls
+- [x] Discreet wordless reactions on click and movement
