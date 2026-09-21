@@ -22,3 +22,4 @@
 - [ ] Verify the den on desktop and mobile
 - [ ] Picture-book aesthetic in three layers (background, middle, foreground)
 - [ ] Real day cycle and weather progression
+- [ ] Seasonal change affecting vegetation, finds and animal behaviour
