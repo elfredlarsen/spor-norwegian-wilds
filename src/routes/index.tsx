@@ -1,17 +1,21 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { GameCanvas } from "@/game/GameCanvas";
+import { WorldExperience } from "@/world/WorldExperience";
+
+const title = "Spor — A Quiet Nordic Forest";
+const description =
+  "Wander as a fox through a calm Nordic forest. Leave stones, flowers, lanterns and weather for someone else to find.";
 
 export const Route = createFileRoute("/")({
   ssr: false,
   head: () => ({
     meta: [
-      { title: "Spor — A Quiet Norwegian Nature World" },
-      { name: "description", content: "Wander slowly as a red fox through a living Norwegian pine glade." },
-      { property: "og:title", content: "Spor — A Quiet Norwegian Nature World" },
-      { property: "og:description", content: "Wander slowly as a red fox through a living Norwegian pine glade." },
+      { title },
+      { name: "description", content: description },
+      { property: "og:title", content: title },
+      { property: "og:description", content: description },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
-  component: GameCanvas,
+  component: WorldExperience,
 });
