@@ -2,7 +2,7 @@ export type ParticipantId = "elder" | "child";
 
 export type WeatherKind = "clear" | "rain" | "mist" | "sun";
 
-export type PlacementKind = "stone" | "flower" | "lantern";
+export type PlacementKind = "stone" | "flower" | "lantern" | "berry";
 
 export type Placement = {
   id: string;

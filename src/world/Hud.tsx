@@ -16,6 +16,7 @@ const TOOLS: Array<{ kind: PlacementKind; label: string; norwegian: string }> = 
   { kind: "stone", label: "Place a stone", norwegian: "varde" },
   { kind: "flower", label: "Plant flowers", norwegian: "hvitveis" },
   { kind: "lantern", label: "Light a lantern", norwegian: "lykt" },
+  { kind: "berry", label: "Leave glowing berries", norwegian: "glødende bær" },
 ];
 
 function Panel({ children }: { children: React.ReactNode }) {
@@ -108,12 +109,14 @@ export function Hud() {
     note,
     hintSeen,
     discovery,
+    nearWater,
     setParticipant,
     setTool,
     setWeather,
     setVolume,
     setMuted,
     setDiscovery,
+    requestSense,
   } = useUiStore();
   const lastVisit = useRef<Record<ParticipantId, number>>({ elder: 0, child: 0 });
 
@@ -204,6 +207,20 @@ export function Hud() {
 
       <div className="absolute bottom-4 left-4 flex flex-col gap-2">
         <Panel>
+          <div className="grid grid-cols-3 gap-1">
+            <SoftButton onClick={() => requestSense("sniff")} title="Scent the air and reveal a faint trail">
+              Sniff<span className="block text-xs italic text-[#e7e4d8]/45">snuse</span>
+            </SoftButton>
+            <SoftButton onClick={() => requestSense("drink")} title="Drink quietly at the stream bank">
+              <span className={nearWater ? "text-[#f4f1e6]" : "text-[#e7e4d8]/45"}>Drink</span>
+              <span className="block text-xs italic text-[#e7e4d8]/45">drikke</span>
+            </SoftButton>
+            <SoftButton onClick={() => requestSense("dig")} title="Gently paw through deep moss">
+              Paw<span className="block text-xs italic text-[#e7e4d8]/45">grave</span>
+            </SoftButton>
+          </div>
+        </Panel>
+        <Panel>
           <div className="flex flex-col">
             {TOOLS.map((item) => (
               <SoftButton key={item.kind} active={tool === item.kind} onClick={() => setTool(item.kind)}>
@@ -244,7 +261,7 @@ export function Hud() {
                 audio.init();
                 setVolume(Number(event.target.value));
               }}
-              className="pointer-events-auto w-28 accent-[#e7e4d8]"
+              className="pointer-events-auto hidden w-28 accent-[#e7e4d8] md:block"
               aria-label="Volume"
             />
           </div>
@@ -270,7 +287,7 @@ export function Hud() {
       ) : null}
 
       {discovery ? (
-        <div className="absolute left-1/2 top-16 w-72 -translate-x-1/2 rounded-2xl border border-white/10 bg-[#1d2620]/70 px-4 py-3 text-center text-sm text-[#f0ecdf] shadow-lg backdrop-blur-md">
+        <div className="absolute right-4 top-4 w-44 rounded-2xl border border-white/10 bg-[#1d2620]/70 px-4 py-3 text-center text-sm text-[#f0ecdf] shadow-lg backdrop-blur-md md:left-1/2 md:right-auto md:top-16 md:w-72 md:-translate-x-1/2">
           {discovery}
         </div>
       ) : null}

@@ -124,6 +124,43 @@ class ForestAudio {
     oscillator.start();
     oscillator.stop(context.currentTime + 1.7);
   }
+
+  private softTone(frequency: number, duration: number, volume = 0.018) {
+    const context = this.context;
+    const master = this.master;
+    if (!context || !master || this.muted) return;
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    oscillator.type = "sine";
+    oscillator.frequency.setValueAtTime(frequency, context.currentTime);
+    oscillator.frequency.exponentialRampToValueAtTime(frequency * 0.72, context.currentTime + duration);
+    gain.gain.setValueAtTime(0.0001, context.currentTime);
+    gain.gain.exponentialRampToValueAtTime(volume, context.currentTime + 0.025);
+    gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + duration);
+    oscillator.connect(gain);
+    gain.connect(master);
+    oscillator.start();
+    oscillator.stop(context.currentTime + duration + 0.04);
+  }
+
+  flutter() {
+    this.softTone(560, 0.16, 0.009);
+    window.setTimeout(() => this.softTone(720, 0.12, 0.007), 70);
+  }
+
+  splash() {
+    this.softTone(240, 0.22, 0.016);
+  }
+
+  sip() {
+    this.softTone(330, 0.45, 0.012);
+    window.setTimeout(() => this.softTone(410, 0.38, 0.009), 220);
+  }
+
+  dig() {
+    this.softTone(105, 0.18, 0.014);
+    window.setTimeout(() => this.softTone(82, 0.2, 0.011), 150);
+  }
 }
 
 export const audio = new ForestAudio();
