@@ -12,6 +12,8 @@ import {
   invitationPath,
   nearestNiche,
 } from "./den";
+import { currentCycle, SEASON_PALETTE, type Season } from "./cycle";
+import { drawBackdrop, drawDaylight, drawForeground } from "./layers";
 import { drawDenInterior, drawDenMouth, drawInvitation } from "./DenScene";
 import { worldEngine } from "./engine";
 import { useUiStore, type Carried } from "./ui-store";
