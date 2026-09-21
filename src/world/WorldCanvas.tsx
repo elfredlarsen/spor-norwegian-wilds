@@ -144,6 +144,98 @@ function paintGround(canvas: HTMLCanvasElement) {
   }
   ctx.globalAlpha = 1;
 
+  // wisps of grass blades for close-up texture, in small tufts rather than a uniform lawn
+  for (let tuft = 0; tuft < 2600; tuft += 1) {
+    const tx = Math.random() * WORLD_WIDTH;
+    const ty = Math.random() * WORLD_HEIGHT;
+    const bladeCount = 3 + Math.floor(Math.random() * 3);
+    const dark = Math.random() > 0.5;
+    ctx.strokeStyle = dark ? "#3d5138" : "#7a9160";
+    ctx.globalAlpha = 0.3 + Math.random() * 0.25;
+    ctx.lineWidth = 0.8;
+    for (let blade = 0; blade < bladeCount; blade += 1) {
+      const bx = tx + (Math.random() - 0.5) * 10;
+      const by = ty + (Math.random() - 0.5) * 6;
+      const lean = (Math.random() - 0.5) * 5;
+      const height = 4 + Math.random() * 5;
+      ctx.beginPath();
+      ctx.moveTo(bx, by);
+      ctx.quadraticCurveTo(bx + lean * 0.6, by - height * 0.6, bx + lean, by - height);
+      ctx.stroke();
+    }
+  }
+  ctx.globalAlpha = 1;
+
+  // ferns: a fan of tapered fronds from a base point, in shadier clusters
+  for (let fern = 0; fern < 130; fern += 1) {
+    const fx = Math.random() * WORLD_WIDTH;
+    const fy = Math.random() * WORLD_HEIGHT;
+    const fronds = 5 + Math.floor(Math.random() * 3);
+    const spread = Math.random() * Math.PI * 2;
+    const scale = 0.7 + Math.random() * 0.7;
+    ctx.fillStyle = Math.random() > 0.5 ? "#3a5236" : "#44603f";
+    ctx.globalAlpha = 0.55 + Math.random() * 0.25;
+    for (let frond = 0; frond < fronds; frond += 1) {
+      const angle = spread + (frond / fronds) * Math.PI * 1.3 - Math.PI * 0.65;
+      const length = (14 + Math.random() * 10) * scale;
+      const tipX = fx + Math.cos(angle) * length;
+      const tipY = fy + Math.sin(angle) * length * 0.7 - length * 0.3;
+      ctx.beginPath();
+      ctx.moveTo(fx, fy);
+      for (let leaflet = 1; leaflet <= 5; leaflet += 1) {
+        const t = leaflet / 5;
+        const px = fx + (tipX - fx) * t;
+        const py = fy + (tipY - fy) * t;
+        const perp = Math.cos(angle + Math.PI / 2) * 2.2 * (1 - t) * scale;
+        const perpY = Math.sin(angle + Math.PI / 2) * 2.2 * (1 - t) * scale;
+        ctx.lineTo(px + perp, py + perpY);
+        ctx.lineTo(px - perp, py - perpY);
+      }
+      ctx.lineTo(tipX, tipY);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+  ctx.globalAlpha = 1;
+
+  // fallen leaves, twigs and pine needles scattered as forest-floor debris
+  for (let debris = 0; debris < 500; debris += 1) {
+    const dx = Math.random() * WORLD_WIDTH;
+    const dy = Math.random() * WORLD_HEIGHT;
+    const kind = Math.random();
+    ctx.globalAlpha = 0.5 + Math.random() * 0.3;
+    if (kind < 0.55) {
+      // a small curled leaf
+      ctx.fillStyle = kind < 0.2 ? "#a6592f" : kind < 0.38 ? "#c1893f" : "#8a6a35";
+      ctx.beginPath();
+      ctx.ellipse(dx, dy, 2.6 + Math.random() * 1.6, 1.3 + Math.random() * 0.8, Math.random() * Math.PI, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      // a thin twig
+      ctx.strokeStyle = "#5a4632";
+      ctx.lineWidth = 0.9;
+      const angle = Math.random() * Math.PI;
+      const len = 5 + Math.random() * 6;
+      ctx.beginPath();
+      ctx.moveTo(dx - Math.cos(angle) * len * 0.5, dy - Math.sin(angle) * len * 0.5);
+      ctx.lineTo(dx + Math.cos(angle) * len * 0.5, dy + Math.sin(angle) * len * 0.5);
+      ctx.stroke();
+    }
+  }
+  ctx.globalAlpha = 1;
+
+  // scattered pebbles across the open floor, not just the stream banks
+  for (let pebble = 0; pebble < 700; pebble += 1) {
+    const px = Math.random() * WORLD_WIDTH;
+    const py = Math.random() * WORLD_HEIGHT;
+    ctx.globalAlpha = 0.35 + Math.random() * 0.25;
+    ctx.fillStyle = Math.random() > 0.5 ? "#8a8c86" : "#6f766c";
+    ctx.beginPath();
+    ctx.ellipse(px, py, 1.2 + Math.random() * 1.8, 0.9 + Math.random() * 1.3, Math.random() * Math.PI, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
   // stream
   const bank = new Path2D();
   const water = new Path2D();
@@ -245,10 +337,32 @@ function drawTree(ctx: CanvasRenderingContext2D, feature: Feature, time: number,
   ctx.translate(feature.x, feature.y);
 
   if (feature.kind === "pine") {
+    // root flare, so the trunk feels planted rather than floating on the grass
+    ctx.fillStyle = "#5a3d2a";
+    ctx.globalAlpha = 0.5;
+    for (let root = 0; root < 4; root += 1) {
+      const angle = (root / 4) * Math.PI * 2 + hash2(feature.x, feature.y + root) * 0.6;
+      ctx.beginPath();
+      ctx.ellipse(Math.cos(angle) * 6 * feature.scale, 2 * feature.scale + Math.sin(angle) * 3 * feature.scale, 4 * feature.scale, 1.6 * feature.scale, angle, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
     ctx.fillStyle = "#6b4a34";
     ctx.beginPath();
     ctx.ellipse(0, 0, 7 * feature.scale, 5 * feature.scale, 0, 0, Math.PI * 2);
     ctx.fill();
+    // vertical bark ridges
+    ctx.strokeStyle = "#4a3223";
+    ctx.globalAlpha = 0.5;
+    ctx.lineWidth = 0.8;
+    for (let ridge = -2; ridge <= 2; ridge += 1) {
+      ctx.beginPath();
+      ctx.moveTo(ridge * 1.8 * feature.scale, -4 * feature.scale);
+      ctx.lineTo(ridge * 1.8 * feature.scale, 4 * feature.scale);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
     const layers = [
       { r: 40, c: palette.pine[0], a: 0.95 },
       { r: 29, c: palette.pine[1], a: 1 },
@@ -278,10 +392,30 @@ function drawTree(ctx: CanvasRenderingContext2D, feature: Feature, time: number,
     ctx.fill();
     ctx.globalAlpha = 1;
   } else {
+    // root flare
+    ctx.fillStyle = "#8a8270";
+    ctx.globalAlpha = 0.4;
+    for (let root = 0; root < 4; root += 1) {
+      const angle = (root / 4) * Math.PI * 2 + hash2(feature.x + 9, feature.y + root) * 0.6;
+      ctx.beginPath();
+      ctx.ellipse(Math.cos(angle) * 5 * feature.scale, 1.5 * feature.scale + Math.sin(angle) * 2.5 * feature.scale, 3.4 * feature.scale, 1.3 * feature.scale, angle, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
     ctx.fillStyle = "#d9d5c8";
     ctx.beginPath();
     ctx.ellipse(0, 0, 5.5 * feature.scale, 4 * feature.scale, 0, 0, Math.PI * 2);
     ctx.fill();
+    // birch bark: short dark horizontal marks
+    ctx.fillStyle = "#4a453c";
+    ctx.globalAlpha = 0.55;
+    for (let mark = 0; mark < 5; mark += 1) {
+      const my = (mark / 5 - 0.4) * 6 * feature.scale;
+      const mx = (hash2(feature.x + mark * 2, feature.y) - 0.5) * 6 * feature.scale;
+      ctx.fillRect(mx, my, 1.6 * feature.scale, 0.7 * feature.scale);
+    }
+    ctx.globalAlpha = 1;
     if (palette.leaf) {
       // a darker undertone first, so the clumps above read as a rounded, layered canopy
       ctx.fillStyle = "#000000";
