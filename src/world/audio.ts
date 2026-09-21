@@ -156,19 +156,47 @@ class ForestAudio {
   }
 
   private applyWeather(time = 1.4) {
+    const indoors = 1 - this.shelter * 0.74;
     const wind = this.weather === "mist" ? [0.014, 0.008, 0.002] : this.weather === "sun" ? [0.03, 0.018, 0.006] : [0.042, 0.025, 0.011];
-    this.wind.forEach((layer, index) => this.ramp(layer, wind[index] ?? 0, time));
-    const rain = this.weather === "rain" ? [0.026, 0.016, 0.014] : [0, 0, 0];
+    this.wind.forEach((layer, index) => this.ramp(layer, (wind[index] ?? 0) * indoors, time));
+    // rain overhead keeps a soft low rumble on the roots, so the low band stays
+    const rain = this.weather === "rain" ? [0.026 * indoors, 0.016 * indoors, 0.014 * (1 + this.shelter * 0.5)] : [0, 0, 0];
     this.rain.forEach((layer, index) => this.ramp(layer, rain[index] ?? 0, time));
     this.ramp(this.mist, this.weather === "mist" ? 0.025 : 0, this.weather === "mist" ? 2.8 : 1.8);
     if (this.context && this.ambienceFilter) {
+      const open = this.weather === "mist" ? 720 : this.weather === "rain" ? 7200 : 12000;
+      const sheltered = 620 - this.warmth * 180;
       this.ambienceFilter.frequency.setTargetAtTime(
-        this.weather === "mist" ? 720 : this.weather === "rain" ? 7200 : 12000,
+        open + (Math.min(open, sheltered) - open) * this.shelter,
         this.context.currentTime,
-        this.weather === "mist" ? 1.6 : 0.8,
+        this.shelter > 0 ? 1.1 : this.weather === "mist" ? 1.6 : 0.8,
       );
     }
     this.applyWaterNearness(time);
+  }
+
+  /** 0 = out in the open forest, 1 = inside the den. */
+  setShelter(amount: number, warmth = this.warmth) {
+    const next = Math.min(1, Math.max(0, amount));
+    const nextWarmth = Math.min(1, Math.max(0, warmth));
+    if (Math.abs(next - this.shelter) < 0.02 && Math.abs(nextWarmth - this.warmth) < 0.02) return;
+    this.shelter = next;
+    this.warmth = nextWarmth;
+    this.applyWeather(1.2);
+  }
+
+  /** Soft rustle of needles, moss or bark settling into the nest. */
+  bedding() {
+    this.duckAmbience(0.6, 0.9);
+    this.noiseBurst("brown", 280, 0.42, 0.015, "lowpass");
+    this.noiseBurst("pink", 980, 0.28, 0.007);
+    this.softTone(196, 0.7, 0.008, "triangle", 0.12);
+  }
+
+  /** A keepsake set down on a stone shelf. */
+  keepsake() {
+    this.softTone(349.23, 0.9, 0.014, "triangle");
+    this.softTone(523.25, 0.75, 0.007, "sine", 0.11);
   }
 
   private applyWaterNearness(time = 0.45) {
