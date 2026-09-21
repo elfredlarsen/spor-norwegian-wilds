@@ -74,6 +74,22 @@ function hash2(a: number, b: number): number {
   return s - Math.floor(s);
 }
 
+/** A soft-edged ground shadow (radial fade) rather than a flat-alpha ellipse, for a gentler, painterly feel. */
+function softShadow(ctx: CanvasRenderingContext2D, cx: number, cy: number, rx: number, ry: number, alpha: number) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.scale(1, ry / rx);
+  const glow = ctx.createRadialGradient(0, 0, 0, 0, 0, rx);
+  glow.addColorStop(0, `rgba(24, 32, 24, ${alpha})`);
+  glow.addColorStop(0.7, `rgba(24, 32, 24, ${alpha * 0.6})`);
+  glow.addColorStop(1, "rgba(24, 32, 24, 0)");
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(0, 0, rx, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
 function paintGround(canvas: HTMLCanvasElement) {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
@@ -85,7 +101,9 @@ function paintGround(canvas: HTMLCanvasElement) {
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
 
-  // soft moss patches, in a wider spread of warm and cool greens
+  // soft moss patches, in a wider spread of warm and cool greens — blurred so
+  // they read as painted texture rather than crisp vector blobs
+  ctx.filter = "blur(3px)";
   for (let index = 0; index < 900; index += 1) {
     const x = Math.random() * WORLD_WIDTH;
     const y = Math.random() * WORLD_HEIGHT;
@@ -97,6 +115,7 @@ function paintGround(canvas: HTMLCanvasElement) {
     ctx.ellipse(x, y, radius, radius * 0.7, Math.random() * Math.PI, 0, Math.PI * 2);
     ctx.fill();
   }
+  ctx.filter = "none";
   ctx.globalAlpha = 1;
 
   // small wildflower clusters scattered through the undergrowth
@@ -220,15 +239,10 @@ function paintGround(canvas: HTMLCanvasElement) {
 function drawTree(ctx: CanvasRenderingContext2D, feature: Feature, time: number, season: Season) {
   const palette = SEASON_PALETTE[season];
   const sway = Math.sin(time * 0.0006 + feature.x * 0.01) * 3 * feature.scale;
+  softShadow(ctx, feature.x + 6 * feature.scale, feature.y + 4 * feature.scale, 30 * feature.scale, 16 * feature.scale, 0.3);
+
   ctx.save();
   ctx.translate(feature.x, feature.y);
-
-  ctx.globalAlpha = 0.22;
-  ctx.fillStyle = "#1e2a1f";
-  ctx.beginPath();
-  ctx.ellipse(6, 4, 30 * feature.scale, 16 * feature.scale, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.globalAlpha = 1;
 
   if (feature.kind === "pine") {
     ctx.fillStyle = "#6b4a34";
@@ -334,14 +348,9 @@ function drawTree(ctx: CanvasRenderingContext2D, feature: Feature, time: number,
 
 function drawRock(ctx: CanvasRenderingContext2D, feature: Feature) {
   const tilt = (hash2(feature.x, feature.y) - 0.5) * 0.6;
+  softShadow(ctx, feature.x + 5 * feature.scale, feature.y + 6 * feature.scale, 30 * feature.scale, 15 * feature.scale, 0.28);
   ctx.save();
   ctx.translate(feature.x, feature.y);
-  ctx.globalAlpha = 0.2;
-  ctx.fillStyle = "#1e2a1f";
-  ctx.beginPath();
-  ctx.ellipse(5, 6, 30 * feature.scale, 15 * feature.scale, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.globalAlpha = 1;
   // cool blue-grey stone, closer to weathered granite than warm brown
   ctx.fillStyle = "#7d838c";
   ctx.beginPath();

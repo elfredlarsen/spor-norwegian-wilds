@@ -33,31 +33,33 @@ export type SeasonPalette = {
 };
 
 export const SEASON_PALETTE: Record<Season, SeasonPalette> = {
+  // A quieter, more weathered palette across the board — less saturated cartoon
+  // green, closer to the soft, misty tones of a Nordic picture-book forest.
   spring: {
-    leaf: "#8fae5f",
-    leafHighlight: "#a8c274",
-    pine: ["#324b33", "#3e5b3b", "#4d6b42"],
-    ground: "#7f9a5c",
+    leaf: "#89a56e",
+    leafHighlight: "#a3bb87",
+    pine: ["#374a3a", "#425842", "#4e654c"],
+    ground: "#7c9268",
     groundAlpha: 0.1,
     berries: 0.2,
     birdActivity: 1,
     leafFall: 0.15,
   },
   summer: {
-    leaf: "#7c9455",
-    leafHighlight: "#93aa66",
-    pine: ["#2f4732", "#3a5639", "#47653f"],
-    ground: "#6c8a4f",
+    leaf: "#7c9066",
+    leafHighlight: "#96a878",
+    pine: ["#354837", "#40563f", "#4c6249"],
+    ground: "#718360",
     groundAlpha: 0.06,
     berries: 0.75,
     birdActivity: 0.9,
     leafFall: 0.2,
   },
   autumn: {
-    leaf: "#c39a4c",
-    leafHighlight: "#d9b463",
-    pine: ["#2c4230", "#365036", "#43603d"],
-    ground: "#9a7c46",
+    leaf: "#bd9958",
+    leafHighlight: "#d0af71",
+    pine: ["#33452f", "#3c5138", "#485e43"],
+    ground: "#93804f",
     groundAlpha: 0.14,
     berries: 1,
     birdActivity: 0.6,
@@ -66,8 +68,8 @@ export const SEASON_PALETTE: Record<Season, SeasonPalette> = {
   winter: {
     leaf: null,
     leafHighlight: null,
-    pine: ["#2a3a30", "#334537", "#3d523d"],
-    ground: "#c9d2d6",
+    pine: ["#32403a", "#3c4a43", "#47564d"],
+    ground: "#c3cdcd",
     groundAlpha: 0.3,
     berries: 0.25,
     birdActivity: 0.3,
