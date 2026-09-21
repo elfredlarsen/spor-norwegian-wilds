@@ -20,3 +20,5 @@
 - [ ] Rename participants to Fox 1 / Fox 2
 - [ ] Wordless, icon-based navigation usable without reading
 - [ ] Verify the den on desktop and mobile
+- [ ] Picture-book aesthetic in three layers (background, middle, foreground)
+- [ ] Real day cycle and weather progression
