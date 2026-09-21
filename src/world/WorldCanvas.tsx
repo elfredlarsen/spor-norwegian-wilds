@@ -1096,7 +1096,7 @@ export function WorldCanvas() {
         drawables.push({
           y: feature.y,
           draw: () =>
-            feature.kind === "rock" ? drawRock(ctx, feature) : drawTree(ctx, feature, now),
+            feature.kind === "rock" ? drawRock(ctx, feature) : drawTree(ctx, feature, now, cycle.season),
         });
       }
       for (const item of state.placements) {
