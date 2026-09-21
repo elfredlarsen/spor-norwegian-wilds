@@ -15,3 +15,7 @@
 - [x] Real-time stream attenuation, weather acoustics, rest and pace-aware footsteps
 - [x] AI-generated personal nature journal note from free text
 - [x] Verify dynamic audio and nature journal on desktop and mobile
+- [ ] Den: opening, entrance, muffled weather audio and sheltered interior
+- [ ] Den: bedding materials, keepsake niches, invitation trail
+- [ ] Rename participants to Fox 1 / Fox 2
+- [ ] Verify the den on desktop and mobile
