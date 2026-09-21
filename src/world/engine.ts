@@ -248,7 +248,7 @@ class WorldEngine {
         y: placement.y,
         variant: placement.variant,
         by: this.myUserId,
-      } as never);
+      } as never).then((r: { error: unknown }) => console.log("MP insert", JSON.stringify(r.error)));
     }
     return placement;
   }
