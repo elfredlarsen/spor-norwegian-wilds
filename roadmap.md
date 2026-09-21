@@ -15,11 +15,11 @@
 - [x] Real-time stream attenuation, weather acoustics, rest and pace-aware footsteps
 - [x] AI-generated personal nature journal note from free text
 - [x] Verify dynamic audio and nature journal on desktop and mobile
-- [ ] Den: opening, entrance, muffled weather audio and sheltered interior
-- [ ] Den: bedding materials, keepsake niches, invitation trail
-- [ ] Rename participants to Fox 1 / Fox 2
-- [ ] Wordless, icon-based navigation usable without reading
-- [ ] Verify the den on desktop and mobile
+- [x] Den: opening, entrance, muffled weather audio and sheltered interior
+- [x] Den: bedding materials, keepsake niches, invitation trail
+- [x] Rename participants to Fox 1 / Fox 2
+- [x] Wordless, icon-based navigation usable without reading
+- [x] Verify the den on desktop and mobile
 - [ ] Picture-book aesthetic in three layers (background, middle, foreground)
 - [ ] Real day cycle and weather progression
 - [ ] Seasonal change affecting vegetation, finds and animal behaviour
