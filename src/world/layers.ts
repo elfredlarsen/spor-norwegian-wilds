@@ -122,9 +122,15 @@ export function drawDaylight(
   viewHeight: number,
   cycle: Cycle,
 ) {
+  const palette = SEASON_PALETTE[cycle.season];
+  const wash = ctx.createLinearGradient(0, 0, 0, viewHeight);
+  wash.addColorStop(0, cycle.tint);
+  wash.addColorStop(0.58, cycle.tint);
+  wash.addColorStop(1, palette.ground);
+
   ctx.save();
   ctx.globalAlpha = cycle.tintAlpha;
-  ctx.fillStyle = cycle.tint;
+  ctx.fillStyle = wash;
   ctx.fillRect(0, 0, viewWidth, viewHeight);
   ctx.restore();
 }

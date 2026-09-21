@@ -100,19 +100,20 @@ export function currentCycle(date = new Date()): Cycle {
   else if (hours > sunset - 1) daylight = mix(1, 0, (hours - (sunset - 1)) / 2.4);
   else daylight = 1;
 
-  let tint = "#0f1a26";
-  let tintAlpha = 0.5;
+  let tint = "#1d2b32";
+  let tintAlpha = 0.46;
   if (daylight > 0.9) {
-    tint = "#fff3d4";
-    tintAlpha = 0.04;
+    // A quiet, lichen-soft daylight rather than a pale yellow veil.
+    tint = season === "winter" ? "#dce5e3" : "#d8dfc8";
+    tintAlpha = 0.055;
   } else if (hours < 12) {
-    // morning: rose and pale gold
-    tint = "#f3c79a";
-    tintAlpha = mix(0.44, 0.08, daylight);
+    // morning: muted rose held close to bark and moss
+    tint = "#d8b697";
+    tintAlpha = mix(0.4, 0.075, daylight);
   } else {
-    // evening: amber sinking into blue
-    tint = daylight > 0.35 ? "#e8a86a" : "#20304a";
-    tintAlpha = mix(0.5, 0.1, daylight);
+    // evening: weathered ochre sinking into a forest blue-grey
+    tint = daylight > 0.35 ? "#bd8f68" : "#263847";
+    tintAlpha = mix(0.46, 0.085, daylight);
   }
 
   return { daylight, tint, tintAlpha, glow: 1 - daylight, season };
