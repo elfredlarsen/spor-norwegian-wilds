@@ -808,6 +808,59 @@ export function WorldCanvas() {
       const nearWaterBank = Math.abs(position.x - streamCenter(position.y)) < streamHalfWidth(position.y) + 54;
       if (ui.nearWater !== nearWaterBank) ui.setNearWater(nearWaterBank);
 
+      // the den mouth, and what the forest offers to carry inside
+      const atDenMouth = Math.hypot(position.x - DEN_MOUTH.x, position.y - DEN_MOUTH.y) < DEN_NEAR_RADIUS;
+      if (ui.nearDen !== atDenMouth) ui.setNearDen(atDenMouth);
+
+      let gatherable: Carried | null = null;
+      if (!ui.carried) {
+        let bestDistance = 74;
+        for (const feature of FEATURES) {
+          const distance = Math.hypot(feature.x - position.x, feature.y - position.y);
+          if (distance > bestDistance) continue;
+          const material =
+            feature.kind === "pine" ? "needles" : feature.kind === "birch" ? "bark" : feature.kind === "heather" ? "moss" : null;
+          if (!material) continue;
+          const entry = MATERIALS[material];
+          bestDistance = distance;
+          gatherable = { category: "bedding", kind: material, label: entry.label, norwegian: entry.norwegian };
+        }
+        for (const placement of worldEngine.state.placements) {
+          if (placement.kind !== "berry" && placement.kind !== "stone") continue;
+          const distance = Math.hypot(placement.x - position.x, placement.y - position.y);
+          if (distance > bestDistance) continue;
+          const item: DenKeepsake = placement.kind === "berry" ? "lingonberry" : "pebble";
+          const entry = KEEPSAKES[item];
+          bestDistance = distance;
+          gatherable = { category: "keepsake", kind: item, label: entry.label, norwegian: entry.norwegian };
+        }
+      }
+      if (ui.gatherable?.kind !== gatherable?.kind || ui.gatherable?.category !== gatherable?.category) {
+        ui.setGatherable(gatherable);
+      }
+
+      if (ui.denRequest && ui.denRequest.nonce !== lastDenNonce) {
+        lastDenNonce = ui.denRequest.nonce;
+        const request = ui.denRequest.kind;
+        audio.init();
+        if (request === "enter" && atDenMouth) {
+          worldEngine.discoverDen(participant);
+          denFox = { x: DEN_EXIT.x, y: DEN_EXIT.y - 70 };
+          denWalkTarget = null;
+          ui.setDenInside(true);
+          ui.setDiscovery(null);
+          audio.bedding();
+        } else if (request === "gather" && gatherable) {
+          ui.setCarried(gatherable);
+          ui.setGatherable(null);
+          audio.dig();
+        } else if (request === "deposit" && ui.carried) {
+          ui.setCarried(null);
+        }
+        ui.clearDenRequest();
+      }
+
+
       if (ui.senseRequest && ui.senseRequest.nonce !== lastSenseNonce) {
         lastSenseNonce = ui.senseRequest.nonce;
         actionKind = ui.senseRequest.kind;
