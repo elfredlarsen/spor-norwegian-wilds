@@ -8,6 +8,13 @@
       "when": 1790029600754,
       "tag": "0000_multiplayer_pairing",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1790029610747,
+      "tag": "0001_multiplayer_pairing_grants",
+      "breakpoints": true
     }
   ]
 }
