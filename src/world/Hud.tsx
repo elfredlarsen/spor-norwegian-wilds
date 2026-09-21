@@ -69,17 +69,25 @@ const JOURNAL_KEY = "spor.nature-journal.v1";
 
 type JournalEntry = { id: string; observation: string; note: string; createdAt: number };
 
-function Panel({ children }: { children: React.ReactNode }) {
+/**
+ * A soft colour accent per panel groups related controls at a glance — weather,
+ * senses, tools and the den each get their own hue — without adding any text.
+ */
+function Panel({ children, accent }: { children: React.ReactNode; accent?: string }) {
   return (
-    <div className="pointer-events-auto rounded-2xl border border-white/10 bg-[#1d2620]/70 p-1.5 text-[#e7e4d8] shadow-lg backdrop-blur-md">
-      {children}
+    <div
+      className="pointer-events-auto rounded-2xl border border-white/10 bg-[#1d2620]/70 text-[#e7e4d8] shadow-lg backdrop-blur-md"
+      style={accent ? { boxShadow: `inset 3px 0 0 ${accent}` } : undefined}
+    >
+      <div className="p-1.5">{children}</div>
     </div>
   );
 }
 
 /**
- * Every control is an icon with a hidden text name, so the world can be played
- * by someone who cannot read yet.
+ * Every control is an icon first, so the world can be played by someone who
+ * cannot read yet — but its name surfaces in a small bubble on hover or tap,
+ * since a hidden `title` attribute alone never reaches a touch screen.
  */
 function IconButton({
   Icon,
@@ -99,19 +107,47 @@ function IconButton({
   tint?: string;
 }) {
   const name = norwegian ? `${label} · ${norwegian}` : label;
+  const [showLabel, setShowLabel] = useState(false);
+  const hideTimer = useRef<number | null>(null);
+
+  const revealBriefly = () => {
+    setShowLabel(true);
+    if (hideTimer.current !== null) window.clearTimeout(hideTimer.current);
+    hideTimer.current = window.setTimeout(() => setShowLabel(false), 1600);
+  };
+
+  useEffect(() => () => {
+    if (hideTimer.current !== null) window.clearTimeout(hideTimer.current);
+  }, []);
+
   return (
-    <button
-      type="button"
-      title={name}
-      aria-label={name}
-      aria-pressed={active}
-      onClick={onClick}
-      className={`pointer-events-auto flex min-h-11 min-w-11 items-center justify-center rounded-xl transition-colors duration-500 ${
-        active ? "bg-[#e7e4d8]/20 text-[#f4f1e6]" : dim ? "text-[#e7e4d8]/35" : "text-[#e7e4d8]/80 hover:bg-[#e7e4d8]/10"
-      }`}
-    >
-      <Icon className="size-5" strokeWidth={1.6} style={tint ? { color: tint } : undefined} aria-hidden="true" />
-    </button>
+    <span className="relative flex">
+      {showLabel ? (
+        <span
+          role="tooltip"
+          className="pointer-events-none absolute bottom-full left-1/2 mb-2 -translate-x-1/2 whitespace-nowrap rounded-lg bg-[#111813]/95 px-2.5 py-1 text-xs text-[#f4f1e6] shadow-lg"
+        >
+          {name}
+        </span>
+      ) : null}
+      <button
+        type="button"
+        title={name}
+        aria-label={name}
+        aria-pressed={active}
+        onClick={onClick}
+        onMouseEnter={() => setShowLabel(true)}
+        onMouseLeave={() => setShowLabel(false)}
+        onPointerDown={(event) => {
+          if (event.pointerType === "touch") revealBriefly();
+        }}
+        className={`pointer-events-auto flex min-h-11 min-w-11 items-center justify-center rounded-xl transition-colors duration-500 ${
+          active ? "bg-[#e7e4d8]/20 text-[#f4f1e6]" : dim ? "text-[#e7e4d8]/35" : "text-[#e7e4d8]/80 hover:bg-[#e7e4d8]/10"
+        }`}
+      >
+        <Icon className="size-5" strokeWidth={1.6} style={tint ? { color: tint } : undefined} aria-hidden="true" />
+      </button>
+    </span>
   );
 }
 
@@ -337,7 +373,7 @@ export function Hud() {
         </Panel>
 
         {denInside ? null : (
-          <Panel>
+          <Panel accent="#7ea9c2">
             <div className="flex flex-col">
               {WEATHER.map((item) => (
                 <IconButton
@@ -359,7 +395,7 @@ export function Hud() {
       </div>
 
       <div className={`absolute bottom-4 left-4 flex flex-col gap-2 ${quiet}`}>
-        <Panel>
+        <Panel accent="#8caa6a">
           <div className="flex gap-1">
             {SENSES.map((item) => (
               <IconButton
@@ -376,7 +412,7 @@ export function Hud() {
 
         {/* the den: entering, carrying, laying things down, inviting */}
         {denInside || nearDen || gatherable || carried ? (
-          <Panel>
+          <Panel accent="#a87c52">
             <div className="flex items-center gap-1">
               {denInside ? (
                 <IconButton Icon={DoorOpen} label="Step out into the forest" norwegian="ut" onClick={() => requestDen("exit")} />
@@ -409,7 +445,7 @@ export function Hud() {
         ) : null}
 
         {denInside ? null : (
-          <Panel>
+          <Panel accent="#d9a441">
             <div className="flex items-center gap-1">
               {TOOLS.map((item) => (
                 <IconButton
