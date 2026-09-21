@@ -417,15 +417,20 @@ function drawFox(
   angle: number,
   gait: number,
   moving: boolean,
-  tint: string,
+  participant: ParticipantId,
   sensing: "sniff" | "drink" | "dig" | "rest" | null,
 ) {
+  const appearance = participant === "elder"
+    ? { coat: "#b9532f", warm: "#d97843", cream: "#f3dfbd", dark: "#422d28", innerEar: "#73403a", scale: 1.06 }
+    : { coat: "#dc8646", warm: "#eca45f", cream: "#fff0cf", dark: "#50332d", innerEar: "#8b5148", scale: 0.94 };
+
   ctx.save();
   ctx.translate(x, y);
+  ctx.scale(appearance.scale, appearance.scale);
   ctx.globalAlpha = 0.22;
   ctx.fillStyle = "#1e2a1f";
   ctx.beginPath();
-  ctx.ellipse(3, 5, 17, 9, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, 5, 20, 9, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.globalAlpha = 1;
   ctx.rotate(angle + (sensing === "rest" ? 0.22 : 0));
@@ -433,23 +438,27 @@ function drawFox(
   const bob = sensing === "drink" ? 4 : sensing === "rest" ? 5 : sensing === "dig" ? Math.sin(gait * 3) * 1.8 : moving ? Math.sin(gait) * 1.2 : Math.sin(gait * 0.25) * 0.5;
   const sway = moving ? Math.sin(gait * 0.5) * 0.28 : Math.sin(gait * 0.2) * 0.1;
 
-  // tail
+  // Broad, curved brush tail — the clearest fox silhouette from above.
   ctx.save();
   ctx.rotate(sway * 1.6);
-  ctx.fillStyle = tint;
+  ctx.fillStyle = appearance.coat;
   ctx.beginPath();
-  ctx.moveTo(-6, 0);
-  ctx.quadraticCurveTo(-20, 6, -30, 2);
-  ctx.quadraticCurveTo(-20, -6, -6, 0);
+  ctx.moveTo(-10, 2);
+  ctx.bezierCurveTo(-20, 15, -38, 15, -42, 4);
+  ctx.bezierCurveTo(-45, -5, -34, -11, -25, -7);
+  ctx.bezierCurveTo(-17, -4, -12, -2, -10, 2);
   ctx.fill();
-  ctx.fillStyle = "#f0e6d2";
+  ctx.fillStyle = appearance.cream;
   ctx.beginPath();
-  ctx.ellipse(-29, 1.5, 5, 3.6, 0, 0, Math.PI * 2);
+  ctx.moveTo(-33, 11);
+  ctx.bezierCurveTo(-42, 10, -47, 3, -42, -3);
+  ctx.bezierCurveTo(-37, -7, -32, -7, -29, -5);
+  ctx.bezierCurveTo(-34, 0, -34, 6, -33, 11);
   ctx.fill();
   ctx.restore();
 
   // legs
-  ctx.fillStyle = "#3b2b22";
+  ctx.fillStyle = appearance.dark;
   const step = moving ? Math.sin(gait) * 3 : 0;
   ctx.beginPath();
   ctx.ellipse(6, -7 + step * 0.4, 3.2, 2.4, 0, 0, Math.PI * 2);
@@ -459,49 +468,75 @@ function drawFox(
   ctx.fill();
 
   // body
-  ctx.fillStyle = tint;
+  ctx.fillStyle = appearance.coat;
   ctx.beginPath();
-  ctx.ellipse(0, bob * 0.2, 17, 10.5, 0, 0, Math.PI * 2);
+  ctx.ellipse(-1, bob * 0.2, 18, 10.8, 0, 0, Math.PI * 2);
   ctx.fill();
-  ctx.fillStyle = "#f0e6d2";
-  ctx.globalAlpha = 0.55;
+  ctx.fillStyle = appearance.warm;
+  ctx.globalAlpha = 0.7;
   ctx.beginPath();
-  ctx.ellipse(1, bob * 0.2, 12, 5.2, 0, 0, Math.PI * 2);
+  ctx.ellipse(-2, bob * 0.2, 13, 6.2, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.globalAlpha = 1;
 
   // head
   ctx.save();
-  ctx.translate(16, bob * 0.5);
+  ctx.translate(15, bob * 0.5);
   ctx.rotate(sensing === "sniff" ? -0.28 : sensing === "drink" ? 0.42 : sway * 0.5);
-  ctx.fillStyle = tint;
+  // Soft cheek ruffs make the face broad while the muzzle stays pointed.
+  ctx.fillStyle = appearance.cream;
   ctx.beginPath();
-  ctx.ellipse(0, 0, 9.5, 8, 0, 0, Math.PI * 2);
+  ctx.ellipse(-1, -6, 6, 5, -0.25, 0, Math.PI * 2);
+  ctx.ellipse(-1, 6, 6, 5, 0.25, 0, Math.PI * 2);
   ctx.fill();
-  // ears
-  ctx.fillStyle = "#a6492c";
+  ctx.fillStyle = appearance.coat;
   ctx.beginPath();
-  ctx.moveTo(-3, -6);
-  ctx.lineTo(-6, -11.5);
-  ctx.lineTo(1, -8);
+  ctx.ellipse(0, 0, 10.5, 8.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Tall triangular ears, with darker inner fur.
+  ctx.beginPath();
+  ctx.moveTo(-4, -6);
+  ctx.lineTo(-8, -15);
+  ctx.lineTo(3, -8);
   ctx.closePath();
-  ctx.moveTo(-3, 6);
-  ctx.lineTo(-6, 11.5);
-  ctx.lineTo(1, 8);
+  ctx.moveTo(-4, 6);
+  ctx.lineTo(-8, 15);
+  ctx.lineTo(3, 8);
   ctx.closePath();
   ctx.fill();
-  // snout
-  ctx.fillStyle = "#f0e6d2";
+  ctx.fillStyle = appearance.innerEar;
   ctx.beginPath();
-  ctx.ellipse(7, 0, 6, 4.2, 0, 0, Math.PI * 2);
+  ctx.moveTo(-4, -7);
+  ctx.lineTo(-7, -12.5);
+  ctx.lineTo(0.5, -8);
+  ctx.closePath();
+  ctx.moveTo(-4, 7);
+  ctx.lineTo(-7, 12.5);
+  ctx.lineTo(0.5, 8);
+  ctx.closePath();
   ctx.fill();
-  ctx.fillStyle = "#26211c";
+
+  // Tapered pale muzzle, small nose and bright, gentle eyes.
+  ctx.fillStyle = appearance.cream;
   ctx.beginPath();
-  ctx.arc(12.4, 0, 1.8, 0, Math.PI * 2);
+  ctx.moveTo(2, -5.2);
+  ctx.quadraticCurveTo(12, -4, 15, 0);
+  ctx.quadraticCurveTo(12, 4, 2, 5.2);
+  ctx.quadraticCurveTo(6, 0, 2, -5.2);
+  ctx.fill();
+  ctx.fillStyle = appearance.dark;
+  ctx.beginPath();
+  ctx.arc(14.7, 0, 2, 0, Math.PI * 2);
   ctx.fill();
   ctx.beginPath();
-  ctx.ellipse(3, -4.2, 1.5, 1.2, 0, 0, Math.PI * 2);
-  ctx.ellipse(3, 4.2, 1.5, 1.2, 0, 0, Math.PI * 2);
+  ctx.ellipse(3.5, -4.6, 1.45, 1.7, 0, 0, Math.PI * 2);
+  ctx.ellipse(3.5, 4.6, 1.45, 1.7, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = appearance.cream;
+  ctx.beginPath();
+  ctx.arc(4, -5.1, 0.45, 0, Math.PI * 2);
+  ctx.arc(4, 4.1, 0.45, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
 
@@ -774,7 +809,7 @@ export function WorldCanvas() {
         denAngle,
         gait,
         moving,
-        participant === "child" ? "#c9743a" : "#b75c32",
+        participant,
         resting ? denActionKind : null,
       );
       ctx.restore();
@@ -1203,10 +1238,9 @@ export function WorldCanvas() {
         }
         drawables.push({ y: bird.y, draw: () => drawBird(ctx, bird, now) });
       }
-      const foxTint = participant === "child" ? "#c9743a" : "#b75c32";
       drawables.push({
         y: current.y,
-        draw: () => drawFox(ctx, current.x, current.y, angle, gait, moving, foxTint, now < actionUntil ? actionKind : null),
+        draw: () => drawFox(ctx, current.x, current.y, angle, gait, moving, participant, now < actionUntil ? actionKind : null),
       });
       // the other participant rests quietly where they last wandered
       const other: ParticipantId = participant === "elder" ? "child" : "elder";
@@ -1215,7 +1249,7 @@ export function WorldCanvas() {
         y: otherPosition.y,
         draw: () => {
           ctx.globalAlpha = 0.45;
-          drawFox(ctx, otherPosition.x, otherPosition.y, -0.4, 0, false, other === "child" ? "#c9743a" : "#b75c32", null);
+          drawFox(ctx, otherPosition.x, otherPosition.y, -0.4, 0, false, other, null);
           ctx.globalAlpha = 1;
         },
       });
