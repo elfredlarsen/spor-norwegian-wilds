@@ -421,8 +421,14 @@ function drawFox(
   sensing: "sniff" | "drink" | "dig" | "rest" | null,
 ) {
   const appearance = participant === "elder"
-    ? { coat: "#b9532f", warm: "#d97843", cream: "#f3dfbd", dark: "#422d28", innerEar: "#73403a", scale: 1.06 }
-    : { coat: "#dc8646", warm: "#eca45f", cream: "#fff0cf", dark: "#50332d", innerEar: "#8b5148", scale: 0.94 };
+    ? {
+        coat: "#b9532f", warm: "#d97843", cream: "#f3dfbd", dark: "#422d28", innerEar: "#73403a",
+        scale: 1.06, headW: 9.2, headL: 8.2, earScale: 1.0, snoutL: 18.5, cheekR: 8, eyeScale: 1.0,
+      }
+    : {
+        coat: "#dc8646", warm: "#eca45f", cream: "#fff0cf", dark: "#50332d", innerEar: "#8b5148",
+        scale: 0.94, headW: 8.4, headL: 7.2, earScale: 1.08, snoutL: 16.5, cheekR: 9, eyeScale: 1.12,
+      };
 
   ctx.save();
   ctx.translate(x, y);
@@ -483,60 +489,74 @@ function drawFox(
   ctx.save();
   ctx.translate(15, bob * 0.5);
   ctx.rotate(sensing === "sniff" ? -0.28 : sensing === "drink" ? 0.42 : sway * 0.5);
-  // Soft cheek ruffs make the face broad while the muzzle stays pointed.
-  ctx.fillStyle = appearance.cream;
-  ctx.beginPath();
-  ctx.ellipse(-1, -6, 6, 5, -0.25, 0, Math.PI * 2);
-  ctx.ellipse(-1, 6, 6, 5, 0.25, 0, Math.PI * 2);
-  ctx.fill();
+
+  // Narrower, slightly wedged head base.
   ctx.fillStyle = appearance.coat;
   ctx.beginPath();
-  ctx.ellipse(0, 0, 10.5, 8.5, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, 0, appearance.headW, appearance.headL, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // Tall triangular ears, with darker inner fur.
+  // More upright triangular ears, with darker inner fur.
+  const earScale = appearance.earScale;
+  ctx.fillStyle = appearance.coat;
   ctx.beginPath();
-  ctx.moveTo(-4, -6);
-  ctx.lineTo(-8, -15);
-  ctx.lineTo(3, -8);
+  ctx.moveTo(-5, -7);
+  ctx.lineTo(-10, -20 * earScale);
+  ctx.lineTo(2, -9);
   ctx.closePath();
-  ctx.moveTo(-4, 6);
-  ctx.lineTo(-8, 15);
-  ctx.lineTo(3, 8);
+  ctx.moveTo(-5, 7);
+  ctx.lineTo(-10, 20 * earScale);
+  ctx.lineTo(2, 9);
   ctx.closePath();
   ctx.fill();
   ctx.fillStyle = appearance.innerEar;
   ctx.beginPath();
-  ctx.moveTo(-4, -7);
-  ctx.lineTo(-7, -12.5);
-  ctx.lineTo(0.5, -8);
+  ctx.moveTo(-5, -8);
+  ctx.lineTo(-8.5, -16 * earScale);
+  ctx.lineTo(0, -9);
   ctx.closePath();
-  ctx.moveTo(-4, 7);
-  ctx.lineTo(-7, 12.5);
-  ctx.lineTo(0.5, 8);
+  ctx.moveTo(-5, 8);
+  ctx.lineTo(-8.5, 16 * earScale);
+  ctx.lineTo(0, 9);
   ctx.closePath();
   ctx.fill();
 
-  // Tapered pale muzzle, small nose and bright, gentle eyes.
+  // Prominent cheek fluff framing the muzzle.
   ctx.fillStyle = appearance.cream;
   ctx.beginPath();
-  ctx.moveTo(2, -5.2);
-  ctx.quadraticCurveTo(12, -4, 15, 0);
-  ctx.quadraticCurveTo(12, 4, 2, 5.2);
-  ctx.quadraticCurveTo(6, 0, 2, -5.2);
+  ctx.ellipse(-2, -7.5, appearance.cheekR, appearance.cheekR * 0.72, -0.22, 0, Math.PI * 2);
+  ctx.ellipse(-2, 7.5, appearance.cheekR, appearance.cheekR * 0.72, 0.22, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(-6.5, -10, appearance.cheekR * 0.55, appearance.cheekR * 0.42, -0.55, 0, Math.PI * 2);
+  ctx.ellipse(-6.5, 10, appearance.cheekR * 0.55, appearance.cheekR * 0.42, 0.55, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Longer, more pointed snout with a neat dark nose.
+  ctx.fillStyle = appearance.cream;
+  const snoutL = appearance.snoutL;
+  ctx.beginPath();
+  ctx.moveTo(0, -4.6);
+  ctx.quadraticCurveTo(snoutL * 0.42, -3.2, snoutL, 0);
+  ctx.quadraticCurveTo(snoutL * 0.42, 3.2, 0, 4.6);
+  ctx.quadraticCurveTo(snoutL * 0.2, 0, 0, -4.6);
   ctx.fill();
   ctx.fillStyle = appearance.dark;
   ctx.beginPath();
-  ctx.arc(14.7, 0, 2, 0, Math.PI * 2);
+  ctx.ellipse(snoutL + 0.8, 0, 1.6, 1.15, 0, 0, Math.PI * 2);
   ctx.fill();
+
+  // Bright, gentle eyes with a small catch-light.
+  const eyeR = 1.45 * appearance.eyeScale;
+  ctx.fillStyle = appearance.dark;
   ctx.beginPath();
-  ctx.ellipse(3.5, -4.6, 1.45, 1.7, 0, 0, Math.PI * 2);
-  ctx.ellipse(3.5, 4.6, 1.45, 1.7, 0, 0, Math.PI * 2);
+  ctx.ellipse(2.6, -4.2, eyeR, eyeR * 1.2, 0, 0, Math.PI * 2);
+  ctx.ellipse(2.6, 4.2, eyeR, eyeR * 1.2, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.fillStyle = appearance.cream;
   ctx.beginPath();
-  ctx.arc(4, -5.1, 0.45, 0, Math.PI * 2);
-  ctx.arc(4, 4.1, 0.45, 0, Math.PI * 2);
+  ctx.arc(3.3, -4.8, 0.48 * appearance.eyeScale, 0, Math.PI * 2);
+  ctx.arc(3.3, 3.6, 0.48 * appearance.eyeScale, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
 
