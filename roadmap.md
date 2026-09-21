@@ -5,4 +5,4 @@
 - [x] Wordless actions: weather, stones, flowers, lantern
 - [x] Persistence + companion perspective switcher
 - [x] Nature notes and calm audio
-- [ ] Verify desktop and mobile in browser
+- [x] Verify desktop and mobile in browser
