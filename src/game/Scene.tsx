@@ -178,8 +178,8 @@ function Understory() {
 
 function ValleyBackdrop() {
   const ridges: Array<{ z: number; y: number; color: string; points: Array<[number, number]> }> = [
-    { z: -45, y: 2, color: "#7d8988", points: [[-48, 3], [-37, 12], [-27, 7], [-17, 16], [-6, 8], [4, 15], [15, 7], [28, 13], [42, 4]] },
-    { z: -58, y: 5, color: "#91a09f", points: [[-50, 5], [-39, 18], [-30, 10], [-20, 22], [-8, 13], [2, 25], [13, 15], [24, 23], [39, 8], [50, 12]] },
+    { z: -47, y: -3, color: "#788785", points: [[-48, 1], [-37, 7], [-28, 5], [-17, 11], [-7, 6], [4, 10], [15, 5], [28, 9], [42, 2]] },
+    { z: -62, y: 0, color: "#96a3a1", points: [[-50, 1], [-39, 11], [-30, 7], [-20, 15], [-8, 9], [2, 17], [13, 10], [24, 15], [39, 5], [50, 7]] },
   ];
   return <>
     {ridges.map((ridge) => {
@@ -190,9 +190,12 @@ function ValleyBackdrop() {
       shape.closePath();
       return <mesh key={ridge.z} position={[0, ridge.y, ridge.z]}>
         <shapeGeometry args={[shape]} />
-        <meshStandardMaterial color={ridge.color} roughness={1} fog />
+        <meshStandardMaterial color={ridge.color} roughness={1} fog side={THREE.DoubleSide} />
       </mesh>;
     })}
+    <mesh position={[-20, 14.4, -61.8]} rotation-z={0.12}><coneGeometry args={[3.4, 3.3, 3]} /><meshStandardMaterial color="#d9ddda" roughness={1} fog /></mesh>
+    <mesh position={[2, 16.4, -61.8]} rotation-z={-0.08}><coneGeometry args={[3.8, 4.1, 3]} /><meshStandardMaterial color="#dde1df" roughness={1} fog /></mesh>
+    <mesh position={[24, 14.5, -61.8]} rotation-z={0.08}><coneGeometry args={[3.1, 3.2, 3]} /><meshStandardMaterial color="#d7dcda" roughness={1} fog /></mesh>
   </>;
 }
 
@@ -394,10 +397,12 @@ function Player() {
       bloomClock.current += dt;
       if (bloomClock.current > 0.5) {
         bloomClock.current = 0;
-        const index = blooms.length;
-        const angle = index * 2.399;
-        const radius = 1.05 + Math.min(index, 28) * 0.075;
-        setBlooms((previous) => [...previous.slice(-47), { id: Date.now() + index, x: object.position.x + Math.cos(angle) * radius, z: object.position.z + Math.sin(angle) * radius }]);
+        setBlooms((previous) => {
+          const index = previous.length;
+          const angle = index * 2.399;
+          const radius = 0.78 + Math.min(index, 28) * 0.06;
+          return [...previous.slice(-47), { id: Date.now() + index, x: object.position.x + Math.cos(angle) * radius, z: object.position.z + Math.sin(angle) * radius }];
+        });
       }
     }
     const nextAction: FoxAction = resting ? "resting" : sniffing ? "sniffing" : moving ? "moving" : "idle";
