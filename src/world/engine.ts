@@ -15,8 +15,13 @@ const STORAGE_KEY = "spor.world.v1";
 const TRAIL_LIMIT = 900;
 const PLACEMENT_LIMIT = 600;
 
+function emptyDen(): DenState {
+  return { discovered: false, rests: 0, bedding: [], keepsakes: [], invitation: null };
+}
+
 function emptyWorld(): WorldState {
   return {
+    den: emptyDen(),
     version: 1,
     placements: [],
     trail: [],
