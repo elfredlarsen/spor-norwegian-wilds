@@ -54,7 +54,11 @@ class WorldEngine {
       if (raw) {
         const parsed = JSON.parse(raw) as Partial<WorldState>;
         if (parsed && parsed.version === 1) {
-          this.state = { ...emptyWorld(), ...parsed } as WorldState;
+          this.state = {
+            ...emptyWorld(),
+            ...parsed,
+            den: { ...emptyDen(), ...(parsed.den ?? {}) },
+          } as WorldState;
         }
       }
     } catch {
@@ -132,6 +136,55 @@ class WorldEngine {
     if (this.state.seen[id]) return;
     this.state.seen[id] = true;
     this.scheduleSave();
+  }
+
+  // ---- the den ----
+
+  /** The fox finds the opening under the fallen pine. */
+  discoverDen() {
+    if (this.state.den.discovered) return false;
+    this.state.den.discovered = true;
+    this.emit();
+    return true;
+  }
+
+  /** Each rest presses the floor of the den a little flatter. */
+  restInDen() {
+    this.state.den.rests += 1;
+    this.emit();
+    return this.state.den.rests;
+  }
+
+  addBedding(material: DenMaterial, by: ParticipantId) {
+    const angle = Math.random() * Math.PI * 2;
+    const distance = Math.random() * 34;
+    this.state.den.bedding.push({
+      material,
+      by,
+      at: Date.now(),
+      offsetX: Math.cos(angle) * distance,
+      offsetY: Math.sin(angle) * distance * 0.6,
+      angle: Math.random() * Math.PI,
+    });
+    this.emit();
+    return this.state.den.bedding.length;
+  }
+
+  /** Inside the den nothing weathers away — keepsakes simply stay. */
+  placeKeepsake(nicheId: string, item: DenKeepsake, by: ParticipantId) {
+    if (this.state.den.keepsakes.some((entry) => entry.nicheId === nicheId)) return false;
+    this.state.den.keepsakes.push({ nicheId, item, by, at: Date.now() });
+    this.emit();
+    return true;
+  }
+
+  keepsakeAt(nicheId: string) {
+    return this.state.den.keepsakes.find((entry) => entry.nicheId === nicheId) ?? null;
+  }
+
+  setInvitation(path: Array<{ x: number; y: number }>, by: ParticipantId) {
+    this.state.den.invitation = { by, at: Date.now(), path };
+    this.emit();
   }
 
   /** Anything another participant left since the given moment. */
