@@ -1,8 +1,23 @@
 import { useEffect, useRef } from "react";
 import { audio } from "./audio";
+import {
+  DEN_EXIT,
+  DEN_HEIGHT,
+  DEN_MOUTH,
+  DEN_NEAR_RADIUS,
+  DEN_WIDTH,
+  KEEPSAKES,
+  MATERIALS,
+  clampInsideDen,
+  invitationPath,
+  nearestNiche,
+} from "./den";
+import { currentCycle, SEASON_PALETTE, type Season } from "./cycle";
+import { drawBackdrop, drawDaylight, drawForeground } from "./layers";
+import { drawDenInterior, drawDenMouth, drawInvitation } from "./DenScene";
 import { worldEngine } from "./engine";
-import { useUiStore } from "./ui-store";
-import type { Feature, ParticipantId, Placement, WeatherKind } from "./types";
+import { useUiStore, type Carried } from "./ui-store";
+import type { DenKeepsake, Feature, ParticipantId, Placement, WeatherKind } from "./types";
 import {
   FEATURES,
   WORLD_HEIGHT,
@@ -151,7 +166,8 @@ function paintGround(canvas: HTMLCanvasElement) {
   }
 }
 
-function drawTree(ctx: CanvasRenderingContext2D, feature: Feature, time: number) {
+function drawTree(ctx: CanvasRenderingContext2D, feature: Feature, time: number, season: Season) {
+  const palette = SEASON_PALETTE[season];
   const sway = Math.sin(time * 0.0006 + feature.x * 0.01) * 3 * feature.scale;
   ctx.save();
   ctx.translate(feature.x, feature.y);
@@ -169,9 +185,9 @@ function drawTree(ctx: CanvasRenderingContext2D, feature: Feature, time: number)
     ctx.ellipse(0, 0, 7 * feature.scale, 5 * feature.scale, 0, 0, Math.PI * 2);
     ctx.fill();
     const layers = [
-      { r: 40, c: "#2f4732", a: 0.95 },
-      { r: 29, c: "#3a5639", a: 1 },
-      { r: 18, c: "#47653f", a: 1 },
+      { r: 40, c: palette.pine[0], a: 0.95 },
+      { r: 29, c: palette.pine[1], a: 1 },
+      { r: 18, c: palette.pine[2], a: 1 },
     ];
     for (const layer of layers) {
       ctx.fillStyle = layer.c;
@@ -194,27 +210,51 @@ function drawTree(ctx: CanvasRenderingContext2D, feature: Feature, time: number)
     ctx.beginPath();
     ctx.ellipse(0, 0, 5.5 * feature.scale, 4 * feature.scale, 0, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = "#7c9455";
-    ctx.globalAlpha = 0.92;
-    for (let clump = 0; clump < 6; clump += 1) {
-      const angle = (clump / 6) * Math.PI * 2;
+    if (palette.leaf) {
+      ctx.fillStyle = palette.leaf;
+      ctx.globalAlpha = 0.92;
+      for (let clump = 0; clump < 6; clump += 1) {
+        const angle = (clump / 6) * Math.PI * 2;
+        ctx.beginPath();
+        ctx.ellipse(
+          Math.cos(angle) * 20 * feature.scale + sway,
+          Math.sin(angle) * 16 * feature.scale,
+          17 * feature.scale,
+          13 * feature.scale,
+          0,
+          0,
+          Math.PI * 2,
+        );
+        ctx.fill();
+      }
+      ctx.fillStyle = palette.leafHighlight ?? palette.leaf;
       ctx.beginPath();
-      ctx.ellipse(
-        Math.cos(angle) * 20 * feature.scale + sway,
-        Math.sin(angle) * 16 * feature.scale,
-        17 * feature.scale,
-        13 * feature.scale,
-        0,
-        0,
-        Math.PI * 2,
-      );
+      ctx.ellipse(sway, -2, 19 * feature.scale, 15 * feature.scale, 0, 0, Math.PI * 2);
       ctx.fill();
+      ctx.globalAlpha = 1;
+    } else {
+      // winter: bare branches, with a little snow resting on them
+      ctx.strokeStyle = "#8d8577";
+      ctx.lineWidth = 2;
+      for (let branch = 0; branch < 7; branch += 1) {
+        const angle = -Math.PI / 2 + (branch - 3) * 0.36;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.quadraticCurveTo(
+          Math.cos(angle) * 14 * feature.scale + sway,
+          Math.sin(angle) * 12 * feature.scale,
+          Math.cos(angle) * 26 * feature.scale + sway,
+          Math.sin(angle) * 22 * feature.scale,
+        );
+        ctx.stroke();
+      }
+      ctx.fillStyle = "#e6ecef";
+      ctx.globalAlpha = 0.5;
+      ctx.beginPath();
+      ctx.ellipse(sway, -8 * feature.scale, 14 * feature.scale, 5 * feature.scale, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
     }
-    ctx.fillStyle = "#93aa66";
-    ctx.beginPath();
-    ctx.ellipse(sway, -2, 19 * feature.scale, 15 * feature.scale, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.globalAlpha = 1;
   }
   ctx.restore();
 }
@@ -499,6 +539,14 @@ export function WorldCanvas() {
     let actionUntil = 0;
     let actionKind: "sniff" | "drink" | "dig" | "rest" | null = null;
     let lastSenseNonce = 0;
+    let lastDenNonce = 0;
+    let denFox = { x: DEN_EXIT.x, y: DEN_EXIT.y - 60 };
+    let denAngle = -Math.PI / 2;
+    let denWalkTarget: { x: number; y: number } | null = null;
+    let denView = { scale: 1, offsetX: 0, offsetY: 0 };
+    let denSinceFootstep = 0;
+    let denActionUntil = 0;
+    let denActionKind: "sniff" | "drink" | "dig" | "rest" | null = null;
     let lastWeather: WeatherKind = worldEngine.state.weather.kind;
     let lastRainAt = lastWeather === "rain" ? performance.now() : -Infinity;
     const random = seeded(7139);
@@ -524,6 +572,9 @@ export function WorldCanvas() {
     });
     const ripples: Ripple[] = [];
     const scents: ScentWisp[] = [];
+    // wordless answers: a ring where you touched, motes stirred up as you walk
+    const touches: { x: number; y: number; born: number }[] = [];
+    const motes: { x: number; y: number; vx: number; vy: number; born: number }[] = [];
     const moths = Array.from({ length: 32 }, () => ({ x: random() * WORLD_WIDTH, y: random() * WORLD_HEIGHT, phase: random() * Math.PI * 2 }));
     const leaves = Array.from({ length: 34 }, () => { const y = random() * WORLD_HEIGHT; return { x: streamCenter(y) + (random() - 0.5) * streamHalfWidth(y), y, phase: random() * Math.PI * 2 }; });
 
@@ -570,13 +621,179 @@ export function WorldCanvas() {
     const onPointerDown = (event: PointerEvent) => {
       audio.init();
       const rect = canvas.getBoundingClientRect();
-      walkTarget = {
-        x: cameraX + (event.clientX - rect.left),
-        y: cameraY + (event.clientY - rect.top),
-      };
+      const pointerX = event.clientX - rect.left;
+      const pointerY = event.clientY - rect.top;
+      if (useUiStore.getState().denInside) {
+        denWalkTarget = {
+          x: (pointerX - denView.offsetX) / denView.scale,
+          y: (pointerY - denView.offsetY) / denView.scale,
+        };
+      } else {
+        walkTarget = { x: cameraX + pointerX, y: cameraY + pointerY };
+        touches.push({ x: cameraX + pointerX, y: cameraY + pointerY, born: performance.now() });
+        if (touches.length > 8) touches.shift();
+      }
       useUiStore.getState().markHintSeen();
     };
     canvas.addEventListener("pointerdown", onPointerDown);
+
+    const readInput = () => {
+      let inputX = 0;
+      let inputY = 0;
+      if (keys["arrowleft"] || keys["a"]) inputX -= 1;
+      if (keys["arrowright"] || keys["d"]) inputX += 1;
+      if (keys["arrowup"] || keys["w"]) inputY -= 1;
+      if (keys["arrowdown"] || keys["s"]) inputY += 1;
+      inputX += padRef.current.x;
+      inputY += padRef.current.y;
+      return { inputX, inputY };
+    };
+
+    /** Inside the den: a small, quiet, sheltered room of its own. */
+    const denFrame = (now: number, delta: number) => {
+      const ui = useUiStore.getState();
+      const participant: ParticipantId = ui.participant;
+      const den = worldEngine.state.den;
+      const warmth = Math.min(1, den.bedding.length / 6);
+      audio.setShelter(1, warmth);
+
+      let { inputX, inputY } = readInput();
+      if (!inputX && !inputY && denWalkTarget) {
+        const dx = denWalkTarget.x - denFox.x;
+        const dy = denWalkTarget.y - denFox.y;
+        const distance = Math.hypot(dx, dy);
+        if (distance < 10) denWalkTarget = null;
+        else {
+          inputX = dx / distance;
+          inputY = dy / distance;
+        }
+      }
+      const magnitude = Math.hypot(inputX, inputY);
+      if (magnitude > 1) {
+        inputX /= magnitude;
+        inputY /= magnitude;
+      }
+
+      // requests from the quiet icon bar
+      if (ui.denRequest && ui.denRequest.nonce !== lastDenNonce) {
+        lastDenNonce = ui.denRequest.nonce;
+        const request = ui.denRequest.kind;
+        audio.init();
+        if (request === "exit") {
+          ui.setDenInside(false);
+          ui.setNearNiche(false);
+          audio.setShelter(0, warmth);
+          denWalkTarget = null;
+        } else if (request === "deposit" && ui.carried) {
+          const carried = ui.carried;
+          if (carried.category === "bedding") {
+            worldEngine.addBedding(carried.kind, participant);
+            audio.bedding();
+            ui.setDiscovery(null);
+          } else {
+            const niche = nearestNiche(denFox.x, denFox.y, 120);
+            const free = niche && !worldEngine.keepsakeAt(niche.id) ? niche : null;
+            if (free) {
+              worldEngine.placeKeepsake(free.id, carried.kind, participant);
+              audio.keepsake();
+            }
+          }
+          if (carried.category === "bedding" || nearestNiche(denFox.x, denFox.y, 120)) ui.setCarried(null);
+        } else if (request === "invite") {
+          const guest: ParticipantId = participant === "elder" ? "child" : "elder";
+          const guestPosition = worldEngine.state.positions[guest];
+          worldEngine.setInvitation(invitationPath(guestPosition.x, guestPosition.y), participant);
+          audio.sniff();
+          audio.discoveryResonance();
+        }
+        ui.clearDenRequest();
+      }
+
+      if (ui.senseRequest && ui.senseRequest.nonce !== lastSenseNonce) {
+        lastSenseNonce = ui.senseRequest.nonce;
+        denActionKind = ui.senseRequest.kind;
+        denActionUntil = now + (denActionKind === "rest" ? 6000 : 2600);
+        denWalkTarget = null;
+        audio.init();
+        if (denActionKind === "rest") {
+          worldEngine.restInDen();
+          audio.rest();
+        } else if (denActionKind === "sniff") audio.sniff();
+        else if (denActionKind === "dig") audio.dig();
+        else audio.sip();
+        ui.clearSenseRequest();
+      }
+
+      const resting = now < denActionUntil;
+      const speed = resting ? 0 : 92;
+      const moving = !resting && (Math.abs(inputX) > 0.01 || Math.abs(inputY) > 0.01);
+      if (moving) {
+        const next = clampInsideDen(denFox.x + inputX * speed * delta, denFox.y + inputY * speed * delta);
+        denFox = next;
+        const heading = Math.atan2(inputY, inputX);
+        let difference = heading - denAngle;
+        while (difference > Math.PI) difference -= Math.PI * 2;
+        while (difference < -Math.PI) difference += Math.PI * 2;
+        denAngle += difference * (1 - Math.exp(-9 * delta));
+        gait += delta * 8;
+        denSinceFootstep += speed * delta;
+        if (denSinceFootstep > 34) {
+          denSinceFootstep = 0;
+          audio.footstep("moss", 0.35);
+        }
+      } else {
+        gait += delta * 1.2;
+      }
+
+      const niche = nearestNiche(denFox.x, denFox.y, 110);
+      const nicheFree = Boolean(niche && !worldEngine.keepsakeAt(niche.id));
+      if (ui.nearNiche !== nicheFree) ui.setNearNiche(nicheFree);
+      const atMouth = Math.hypot(denFox.x - DEN_EXIT.x, denFox.y - DEN_EXIT.y) < 90;
+      if (ui.nearDen !== atMouth) ui.setNearDen(atMouth);
+
+      // ---- draw ----
+      const viewWidth = window.innerWidth;
+      const viewHeight = window.innerHeight;
+      ctx.clearRect(0, 0, viewWidth, viewHeight);
+      ctx.fillStyle = "#13100c";
+      ctx.fillRect(0, 0, viewWidth, viewHeight);
+      const scale = Math.min(viewWidth / DEN_WIDTH, viewHeight / DEN_HEIGHT) * 0.96;
+      denView = {
+        scale,
+        offsetX: (viewWidth - DEN_WIDTH * scale) / 2,
+        offsetY: (viewHeight - DEN_HEIGHT * scale) / 2,
+      };
+      ctx.save();
+      ctx.translate(denView.offsetX, denView.offsetY);
+      ctx.scale(scale, scale);
+      drawDenInterior(ctx, den, now, warmth);
+      drawFox(
+        ctx,
+        denFox.x,
+        denFox.y,
+        denAngle,
+        gait,
+        moving,
+        participant === "child" ? "#c9743a" : "#b75c32",
+        resting ? denActionKind : null,
+      );
+      ctx.restore();
+
+      // softened edges: the room feels sheltered
+      const edges = ctx.createRadialGradient(
+        viewWidth / 2,
+        viewHeight / 2,
+        Math.min(viewWidth, viewHeight) * 0.22,
+        viewWidth / 2,
+        viewHeight / 2,
+        Math.max(viewWidth, viewHeight) * 0.68,
+      );
+      edges.addColorStop(0, "rgba(18, 14, 10, 0)");
+      edges.addColorStop(1, "rgba(14, 11, 8, 0.92)");
+      ctx.fillStyle = edges;
+      ctx.fillRect(0, 0, viewWidth, viewHeight);
+    };
+
 
     const frame = (now: number) => {
       raf = requestAnimationFrame(frame);
@@ -584,6 +801,11 @@ export function WorldCanvas() {
       last = now;
 
       const ui = useUiStore.getState();
+      if (ui.denInside) {
+        denFrame(now, delta);
+        return;
+      }
+      audio.setShelter(0);
       const participant: ParticipantId = ui.participant;
       const position = worldEngine.position(participant);
 
@@ -617,6 +839,59 @@ export function WorldCanvas() {
       const depth = waterDepth(position.x, position.y);
       const nearWaterBank = Math.abs(position.x - streamCenter(position.y)) < streamHalfWidth(position.y) + 54;
       if (ui.nearWater !== nearWaterBank) ui.setNearWater(nearWaterBank);
+
+      // the den mouth, and what the forest offers to carry inside
+      const atDenMouth = Math.hypot(position.x - DEN_MOUTH.x, position.y - DEN_MOUTH.y) < DEN_NEAR_RADIUS;
+      if (ui.nearDen !== atDenMouth) ui.setNearDen(atDenMouth);
+
+      let gatherable: Carried | null = null;
+      if (!ui.carried) {
+        let bestDistance = 74;
+        for (const feature of FEATURES) {
+          const distance = Math.hypot(feature.x - position.x, feature.y - position.y);
+          if (distance > bestDistance) continue;
+          const material =
+            feature.kind === "pine" ? "needles" : feature.kind === "birch" ? "bark" : feature.kind === "heather" ? "moss" : null;
+          if (!material) continue;
+          const entry = MATERIALS[material];
+          bestDistance = distance;
+          gatherable = { category: "bedding", kind: material, label: entry.label, norwegian: entry.norwegian };
+        }
+        for (const placement of worldEngine.state.placements) {
+          if (placement.kind !== "berry" && placement.kind !== "stone") continue;
+          const distance = Math.hypot(placement.x - position.x, placement.y - position.y);
+          if (distance > bestDistance) continue;
+          const item: DenKeepsake = placement.kind === "berry" ? "lingonberry" : "pebble";
+          const entry = KEEPSAKES[item];
+          bestDistance = distance;
+          gatherable = { category: "keepsake", kind: item, label: entry.label, norwegian: entry.norwegian };
+        }
+      }
+      if (ui.gatherable?.kind !== gatherable?.kind || ui.gatherable?.category !== gatherable?.category) {
+        ui.setGatherable(gatherable);
+      }
+
+      if (ui.denRequest && ui.denRequest.nonce !== lastDenNonce) {
+        lastDenNonce = ui.denRequest.nonce;
+        const request = ui.denRequest.kind;
+        audio.init();
+        if (request === "enter" && atDenMouth) {
+          worldEngine.discoverDen();
+          denFox = { x: DEN_EXIT.x, y: DEN_EXIT.y - 70 };
+          denWalkTarget = null;
+          ui.setDenInside(true);
+          ui.setDiscovery(null);
+          audio.bedding();
+        } else if (request === "gather" && gatherable) {
+          ui.setCarried(gatherable);
+          ui.setGatherable(null);
+          audio.dig();
+        } else if (request === "deposit" && ui.carried) {
+          ui.setCarried(null);
+        }
+        ui.clearDenRequest();
+      }
+
 
       if (ui.senseRequest && ui.senseRequest.nonce !== lastSenseNonce) {
         lastSenseNonce = ui.senseRequest.nonce;
@@ -731,10 +1006,20 @@ export function WorldCanvas() {
       }
 
       // ---- draw ----
+      const cycle = currentCycle();
+      const seasonPalette = SEASON_PALETTE[cycle.season];
       ctx.clearRect(0, 0, viewWidth, viewHeight);
+      // layer one: the painted backdrop
+      drawBackdrop(ctx, cameraX, cameraY, viewWidth, viewHeight, cycle);
       ctx.save();
       ctx.translate(-Math.round(cameraX), -Math.round(cameraY));
       ctx.drawImage(ground, 0, 0);
+      // the floor takes on the colour of the season
+      ctx.save();
+      ctx.globalAlpha = seasonPalette.groundAlpha;
+      ctx.fillStyle = seasonPalette.ground;
+      ctx.fillRect(cameraX - 20, cameraY - 20, viewWidth + 40, viewHeight + 40);
+      ctx.restore();
 
       const state = worldEngine.state;
       const now2 = Date.now();
@@ -815,7 +1100,53 @@ export function WorldCanvas() {
       }
       ctx.globalAlpha = 1;
 
+      // a quiet ring answers every touch of the ground
+      for (let index = touches.length - 1; index >= 0; index -= 1) {
+        const touch = touches[index];
+        if (!touch) continue;
+        const age = (now - touch.born) / 1000;
+        if (age > 1.6) { touches.splice(index, 1); continue; }
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, 0.34 - age * 0.21);
+        ctx.strokeStyle = "#e7e4d8";
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        ctx.ellipse(touch.x, touch.y, 8 + age * 34, 4 + age * 15, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      // walking stirs up a little pollen, seed down or snow
+      if (moving && random() < delta * 6) {
+        motes.push({
+          x: current.x + (random() - 0.5) * 16,
+          y: current.y + 6 + random() * 6,
+          vx: (random() - 0.5) * 14,
+          vy: -6 - random() * 12,
+          born: now,
+        });
+      }
+      for (let index = motes.length - 1; index >= 0; index -= 1) {
+        const mote = motes[index];
+        if (!mote) continue;
+        const age = (now - mote.born) / 1000;
+        if (age > 2.4) { motes.splice(index, 1); continue; }
+        mote.x += mote.vx * delta;
+        mote.y += mote.vy * delta;
+        mote.vy += 3 * delta;
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, 0.4 - age * 0.17);
+        ctx.fillStyle = cycle.season === "winter" ? "#eef3f5" : seasonPalette.leafHighlight ?? "#d9dcc2";
+        ctx.beginPath();
+        ctx.arc(mote.x, mote.y, 1.8, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+
+      if (state.den.invitation) drawInvitation(ctx, state.den.invitation.path, now);
+
       const drawables: Array<{ y: number; draw: () => void }> = [];
+      drawables.push({ y: DEN_MOUTH.y, draw: () => drawDenMouth(ctx, now, state.den.discovered) });
       for (const feature of FEATURES) {
         if (feature.kind === "heather" || feature.kind === "reed") continue;
         if (feature.x < cameraX - 90 || feature.x > cameraX + viewWidth + 90) continue;
@@ -823,7 +1154,7 @@ export function WorldCanvas() {
         drawables.push({
           y: feature.y,
           draw: () =>
-            feature.kind === "rock" ? drawRock(ctx, feature) : drawTree(ctx, feature, now),
+            feature.kind === "rock" ? drawRock(ctx, feature) : drawTree(ctx, feature, now, cycle.season),
         });
       }
       for (const item of state.placements) {
@@ -853,7 +1184,7 @@ export function WorldCanvas() {
 
       for (const bird of birds) {
         const distance = Math.hypot(current.x - bird.x, current.y - bird.y);
-        if (!bird.airborne && distance < 112 && moving) {
+        if (!bird.airborne && distance < 112 * seasonPalette.birdActivity + 30 && moving) {
           bird.airborne = true;
           bird.vx = (bird.x - current.x) * 0.55;
           bird.vy = -70 - random() * 40;
@@ -922,6 +1253,12 @@ export function WorldCanvas() {
       }
 
       ctx.restore();
+
+      // layer three: near branches and ferns framing the picture
+      drawForeground(ctx, cameraX, cameraY, viewWidth, viewHeight, cycle, now);
+
+      // the light of the actual hour
+      drawDaylight(ctx, viewWidth, viewHeight, cycle);
 
       // ---- weather ----
       if (weather === "rain") {

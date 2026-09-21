@@ -15,3 +15,15 @@
 - [x] Real-time stream attenuation, weather acoustics, rest and pace-aware footsteps
 - [x] AI-generated personal nature journal note from free text
 - [x] Verify dynamic audio and nature journal on desktop and mobile
+- [x] Den: opening, entrance, muffled weather audio and sheltered interior
+- [x] Den: bedding materials, keepsake niches, invitation trail
+- [x] Rename participants to Fox 1 / Fox 2
+- [x] Wordless, icon-based navigation usable without reading
+- [x] Verify the den on desktop and mobile
+- [x] Picture-book aesthetic in three layers (background, middle, foreground)
+- [x] Real day cycle and weather progression
+- [x] Seasonal change affecting vegetation, finds and animal behaviour
+- [x] Automatic saving of finds, discoveries and world changes (already in the engine)
+- [x] Move the nature-note box out of the way at the bottom centre
+- [x] Remove superfluous fixed UI, keep only necessary controls
+- [x] Discreet wordless reactions on click and movement

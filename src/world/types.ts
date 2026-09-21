@@ -28,6 +28,40 @@ export type WeatherState = {
   at: number;
 };
 
+export type DenMaterial = "needles" | "moss" | "bark";
+
+export type DenKeepsake = "pebble" | "feather" | "cone" | "lingonberry";
+
+export type DenBedding = {
+  material: DenMaterial;
+  by: ParticipantId;
+  at: number;
+  offsetX: number;
+  offsetY: number;
+  angle: number;
+};
+
+export type DenKeepsakePlacement = {
+  nicheId: string;
+  item: DenKeepsake;
+  by: ParticipantId;
+  at: number;
+};
+
+export type DenInvitation = {
+  by: ParticipantId;
+  at: number;
+  path: Array<{ x: number; y: number }>;
+};
+
+export type DenState = {
+  discovered: boolean;
+  rests: number;
+  bedding: DenBedding[];
+  keepsakes: DenKeepsakePlacement[];
+  invitation: DenInvitation | null;
+};
+
 export type WorldState = {
   version: 1;
   placements: Placement[];
@@ -35,6 +69,7 @@ export type WorldState = {
   weather: WeatherState;
   positions: Record<ParticipantId, { x: number; y: number }>;
   seen: Record<string, boolean>;
+  den: DenState;
 };
 
 export type FeatureKind = "pine" | "birch" | "rock" | "heather" | "reed";
@@ -48,6 +83,6 @@ export type Feature = {
 };
 
 export const PARTICIPANTS: Record<ParticipantId, { label: string; hue: string }> = {
-  elder: { label: "Exploring as parent", hue: "#c4622d" },
-  child: { label: "Exploring as child", hue: "#d89a4a" },
+  elder: { label: "Fox 1", hue: "#c4622d" },
+  child: { label: "Fox 2", hue: "#d89a4a" },
 };

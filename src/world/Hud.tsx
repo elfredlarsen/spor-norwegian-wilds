@@ -1,26 +1,69 @@
 import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
+import {
+  ArrowDownToLine,
+  Circle,
+  CloudFog,
+  CloudRain,
+  Cherry,
+  DoorClosed,
+  DoorOpen,
+  Droplet,
+  Feather,
+  Flower2,
+  Footprints,
+  Hand,
+  Lamp,
+  Leaf,
+  Moon,
+  PawPrint,
+  Sun,
+  TreePine,
+  Volume2,
+  VolumeX,
+  Wind,
+  X,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { audio } from "./audio";
 import { worldEngine } from "./engine";
 import { createNatureJournalNote } from "./journal.functions";
 import { padRef } from "./WorldCanvas";
-import { useUiStore } from "./ui-store";
+import { useUiStore, type Carried } from "./ui-store";
 import { PARTICIPANTS, type ParticipantId, type PlacementKind, type WeatherKind } from "./types";
 
-const WEATHER: Array<{ kind: WeatherKind; label: string; norwegian: string }> = [
-  { kind: "clear", label: "Still air", norwegian: "stille luft" },
-  { kind: "rain", label: "Gentle rain", norwegian: "stille regn" },
-  { kind: "mist", label: "Drifting mist", norwegian: "tåkedis" },
-  { kind: "sun", label: "Warm sunlight", norwegian: "mildt solskinn" },
+type IconType = typeof Sun;
+
+const WEATHER: Array<{ kind: WeatherKind; label: string; norwegian: string; Icon: IconType }> = [
+  { kind: "clear", label: "Still air", norwegian: "stille luft", Icon: Wind },
+  { kind: "rain", label: "Gentle rain", norwegian: "stille regn", Icon: CloudRain },
+  { kind: "mist", label: "Drifting mist", norwegian: "tåkedis", Icon: CloudFog },
+  { kind: "sun", label: "Warm sunlight", norwegian: "mildt solskinn", Icon: Sun },
 ];
 
-const TOOLS: Array<{ kind: PlacementKind; label: string; norwegian: string }> = [
-  { kind: "stone", label: "Place a stone", norwegian: "varde" },
-  { kind: "flower", label: "Plant flowers", norwegian: "hvitveis" },
-  { kind: "lantern", label: "Light a lantern", norwegian: "lykt" },
-  { kind: "berry", label: "Leave glowing berries", norwegian: "glødende bær" },
+const TOOLS: Array<{ kind: PlacementKind; label: string; norwegian: string; Icon: IconType }> = [
+  { kind: "stone", label: "Place a stone", norwegian: "varde", Icon: Circle },
+  { kind: "flower", label: "Plant flowers", norwegian: "hvitveis", Icon: Flower2 },
+  { kind: "lantern", label: "Light a lantern", norwegian: "lykt", Icon: Lamp },
+  { kind: "berry", label: "Leave glowing berries", norwegian: "glødende bær", Icon: Cherry },
 ];
+
+const SENSES: Array<{ kind: "sniff" | "drink" | "dig" | "rest"; label: string; norwegian: string; Icon: IconType }> = [
+  { kind: "sniff", label: "Scent the air", norwegian: "snuse", Icon: Wind },
+  { kind: "drink", label: "Drink at the stream", norwegian: "drikke", Icon: Droplet },
+  { kind: "dig", label: "Paw through the moss", norwegian: "grave", Icon: PawPrint },
+  { kind: "rest", label: "Curl up and rest", norwegian: "hvile", Icon: Moon },
+];
+
+const CARRY_ICONS: Record<string, IconType> = {
+  needles: TreePine,
+  moss: Leaf,
+  bark: Feather,
+  pebble: Circle,
+  feather: Feather,
+  cone: TreePine,
+  lingonberry: Cherry,
+};
 
 const JOURNAL_KEY = "spor.nature-journal.v1";
 
@@ -28,33 +71,46 @@ type JournalEntry = { id: string; observation: string; note: string; createdAt: 
 
 function Panel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="pointer-events-auto rounded-2xl border border-white/10 bg-[#1d2620]/70 p-2 text-[#e7e4d8] shadow-lg backdrop-blur-md">
+    <div className="pointer-events-auto rounded-2xl border border-white/10 bg-[#1d2620]/70 p-1.5 text-[#e7e4d8] shadow-lg backdrop-blur-md">
       {children}
     </div>
   );
 }
 
-function SoftButton({
+/**
+ * Every control is an icon with a hidden text name, so the world can be played
+ * by someone who cannot read yet.
+ */
+function IconButton({
+  Icon,
+  label,
+  norwegian,
   active,
+  dim,
   onClick,
-  children,
-  title,
+  tint,
 }: {
+  Icon: IconType;
+  label: string;
+  norwegian?: string;
   active?: boolean;
+  dim?: boolean;
   onClick: () => void;
-  children: React.ReactNode;
-  title?: string;
+  tint?: string;
 }) {
+  const name = norwegian ? `${label} · ${norwegian}` : label;
   return (
     <button
       type="button"
-      title={title}
+      title={name}
+      aria-label={name}
+      aria-pressed={active}
       onClick={onClick}
-      className={`rounded-xl px-3 py-2 text-left text-sm transition-colors duration-500 ${
-        active ? "bg-[#e7e4d8]/18 text-[#f4f1e6]" : "text-[#e7e4d8]/75 hover:bg-[#e7e4d8]/10"
+      className={`pointer-events-auto flex min-h-11 min-w-11 items-center justify-center rounded-xl transition-colors duration-500 ${
+        active ? "bg-[#e7e4d8]/20 text-[#f4f1e6]" : dim ? "text-[#e7e4d8]/35" : "text-[#e7e4d8]/80 hover:bg-[#e7e4d8]/10"
       }`}
     >
-      {children}
+      <Icon className="size-5" strokeWidth={1.6} style={tint ? { color: tint } : undefined} aria-hidden="true" />
     </button>
   );
 }
@@ -106,6 +162,20 @@ function Joystick() {
   );
 }
 
+function CarryBadge({ carried }: { carried: Carried }) {
+  const Icon = CARRY_ICONS[carried.kind] ?? Leaf;
+  return (
+    <div
+      className="pointer-events-auto flex min-h-11 items-center gap-2 rounded-2xl border border-white/10 bg-[#1d2620]/70 px-3 text-[#f0ecdf] shadow-lg backdrop-blur-md"
+      title={`${carried.label} · ${carried.norwegian}`}
+      aria-label={`${carried.label} · ${carried.norwegian}`}
+    >
+      <PawPrint className="size-4 opacity-60" aria-hidden="true" />
+      <Icon className="size-5" strokeWidth={1.6} aria-hidden="true" />
+    </div>
+  );
+}
+
 export function Hud() {
   const {
     participant,
@@ -117,6 +187,11 @@ export function Hud() {
     hintSeen,
     discovery,
     nearWater,
+    denInside,
+    nearDen,
+    nearNiche,
+    gatherable,
+    carried,
     setParticipant,
     setTool,
     setWeather,
@@ -124,6 +199,7 @@ export function Hud() {
     setMuted,
     setDiscovery,
     requestSense,
+    requestDen,
   } = useUiStore();
   const lastVisit = useRef<Record<ParticipantId, number>>({ elder: 0, child: 0 });
   const writeJournalNote = useServerFn(createNatureJournalNote);
@@ -132,6 +208,31 @@ export function Hud() {
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
   const [journalBusy, setJournalBusy] = useState(false);
   const [journalError, setJournalError] = useState<string | null>(null);
+  // the controls rest out of sight until a hand comes near them
+  const [idle, setIdle] = useState(false);
+
+  useEffect(() => {
+    let timer = window.setTimeout(() => setIdle(true), 7000);
+    const wake = () => {
+      setIdle(false);
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => setIdle(true), 7000);
+    };
+    window.addEventListener("pointermove", wake);
+    window.addEventListener("pointerdown", wake);
+    window.addEventListener("keydown", wake);
+    window.addEventListener("touchstart", wake);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener("pointermove", wake);
+      window.removeEventListener("pointerdown", wake);
+      window.removeEventListener("keydown", wake);
+      window.removeEventListener("touchstart", wake);
+    };
+  }, []);
+
+  const quiet = `transition-opacity duration-1000 ${idle ? "opacity-20" : "opacity-100"}`;
+
 
   useEffect(() => {
     try {
@@ -225,95 +326,134 @@ export function Hud() {
 
   return (
     <div className="pointer-events-none absolute inset-0 z-10 select-none font-[var(--font-display)] text-[#e7e4d8]">
-      <div className="absolute left-4 top-4 flex flex-col gap-2">
+      <div className={`absolute left-4 top-4 flex flex-col gap-2 ${quiet}`}>
         <Panel>
-          <p className="px-2 pb-1 pt-0.5 text-xs uppercase tracking-[0.3em] text-[#e7e4d8]/55">Spor</p>
-          <SoftButton onClick={switchParticipant} title="Switch who is walking">
-            {PARTICIPANTS[participant].label}
-            <span className="block text-xs text-[#e7e4d8]/50">tap to swap companion</span>
-          </SoftButton>
+          <IconButton
+            Icon={PawPrint}
+            label={`Switch to the other fox — now ${PARTICIPANTS[participant].label}`}
+            onClick={switchParticipant}
+            tint={PARTICIPANTS[participant].hue}
+          />
         </Panel>
 
+        {denInside ? null : (
+          <Panel>
+            <div className="flex flex-col">
+              {WEATHER.map((item) => (
+                <IconButton
+                  key={item.kind}
+                  Icon={item.Icon}
+                  label={item.label}
+                  norwegian={item.norwegian}
+                  active={weather === item.kind}
+                  onClick={() => {
+                    audio.init();
+                    worldEngine.setWeather(item.kind, participant);
+                    setWeather(item.kind);
+                  }}
+                />
+              ))}
+            </div>
+          </Panel>
+        )}
+      </div>
+
+      <div className={`absolute bottom-4 left-4 flex flex-col gap-2 ${quiet}`}>
         <Panel>
-          <div className="flex flex-col">
-            {WEATHER.map((item) => (
-              <SoftButton
+          <div className="flex gap-1">
+            {SENSES.map((item) => (
+              <IconButton
                 key={item.kind}
-                active={weather === item.kind}
-                onClick={() => {
-                  audio.init();
-                  worldEngine.setWeather(item.kind, participant);
-                  setWeather(item.kind);
-                }}
+                Icon={item.Icon}
+                label={item.label}
+                norwegian={item.norwegian}
+                dim={item.kind === "drink" && !nearWater && !denInside}
+                onClick={() => requestSense(item.kind)}
+              />
+            ))}
+          </div>
+        </Panel>
+
+        {/* the den: entering, carrying, laying things down, inviting */}
+        {denInside || nearDen || gatherable || carried ? (
+          <Panel>
+            <div className="flex items-center gap-1">
+              {denInside ? (
+                <IconButton Icon={DoorOpen} label="Step out into the forest" norwegian="ut" onClick={() => requestDen("exit")} />
+              ) : nearDen ? (
+                <IconButton Icon={DoorClosed} label="Slip into the den" norwegian="inn i hiet" onClick={() => requestDen("enter")} />
+              ) : null}
+              {!denInside && gatherable && !carried ? (
+                <IconButton
+                  Icon={Hand}
+                  label={`Carry it in your mouth — ${gatherable.label}`}
+                  norwegian={gatherable.norwegian}
+                  onClick={() => requestDen("gather")}
+                />
+              ) : null}
+              {carried ? (
+                <IconButton
+                  Icon={ArrowDownToLine}
+                  label="Lay it down"
+                  norwegian="legge ned"
+                  dim={denInside && carried.category === "keepsake" && !nearNiche}
+                  onClick={() => requestDen("deposit")}
+                />
+              ) : null}
+              {denInside ? (
+                <IconButton Icon={Footprints} label="Leave a scent trail to the den" norwegian="invitasjon" onClick={() => requestDen("invite")} />
+              ) : null}
+              {carried ? <CarryBadge carried={carried} /> : null}
+            </div>
+          </Panel>
+        ) : null}
+
+        {denInside ? null : (
+          <Panel>
+            <div className="flex items-center gap-1">
+              {TOOLS.map((item) => (
+                <IconButton
+                  key={item.kind}
+                  Icon={item.Icon}
+                  label={item.label}
+                  norwegian={item.norwegian}
+                  active={tool === item.kind}
+                  onClick={() => setTool(item.kind)}
+                />
+              ))}
+              <button
+                type="button"
+                onClick={place}
+                title="Leave it here"
+                aria-label="Leave it here"
+                className="pointer-events-auto ml-1 flex min-h-11 min-w-11 items-center justify-center rounded-xl bg-[#e7e4d8]/18 text-[#f4f1e6] transition-colors hover:bg-[#e7e4d8]/28"
               >
-                {item.label}
-                <span className="block text-xs italic text-[#e7e4d8]/45">{item.norwegian}</span>
-              </SoftButton>
-            ))}
-          </div>
-        </Panel>
+                <ArrowDownToLine className="size-5" strokeWidth={1.6} aria-hidden="true" />
+              </button>
+            </div>
+          </Panel>
+        )}
       </div>
 
-      <div className="absolute bottom-4 left-4 flex flex-col gap-2">
+      <div className={`absolute bottom-4 right-4 flex flex-col items-end gap-3 ${journalOpen ? "opacity-100" : quiet}`}>
         <Panel>
-          <div className="grid grid-cols-4 gap-1">
-            <SoftButton onClick={() => requestSense("sniff")} title="Scent the air and reveal a faint trail">
-              Sniff<span className="block text-xs italic text-[#e7e4d8]/45">snuse</span>
-            </SoftButton>
-            <SoftButton onClick={() => requestSense("drink")} title="Drink quietly at the stream bank">
-              <span className={nearWater ? "text-[#f4f1e6]" : "text-[#e7e4d8]/45"}>Drink</span>
-              <span className="block text-xs italic text-[#e7e4d8]/45">drikke</span>
-            </SoftButton>
-            <SoftButton onClick={() => requestSense("dig")} title="Gently paw through deep moss">
-              Paw<span className="block text-xs italic text-[#e7e4d8]/45">grave</span>
-            </SoftButton>
-            <SoftButton onClick={() => requestSense("rest")} title="Curl up and rest in the moss">
-              Rest<span className="block text-xs italic text-[#e7e4d8]/45">hvile</span>
-            </SoftButton>
-          </div>
-        </Panel>
-        <Panel>
-          <div className="flex flex-col">
-            {TOOLS.map((item) => (
-              <SoftButton key={item.kind} active={tool === item.kind} onClick={() => setTool(item.kind)}>
-                {item.label}
-                <span className="block text-xs italic text-[#e7e4d8]/45">{item.norwegian}</span>
-              </SoftButton>
-            ))}
-            <button
-              type="button"
-              onClick={place}
-              className="pointer-events-auto mt-1 rounded-xl bg-[#e7e4d8]/18 px-3 py-2 text-sm text-[#f4f1e6] transition-colors hover:bg-[#e7e4d8]/28"
-            >
-              Leave it here
-            </button>
-          </div>
-        </Panel>
-      </div>
-
-      <div className="absolute bottom-4 right-4 flex flex-col items-end gap-3">
-        <Panel>
-          <Button
-            type="button"
-            variant="ghost"
+          <IconButton
+            Icon={Feather}
+            label="Naturdagbog · naturdagbok"
+            active={journalOpen}
             onClick={() => setJournalOpen((open) => !open)}
-            className="pointer-events-auto h-auto text-[#e7e4d8]/80 hover:bg-[#e7e4d8]/10 hover:text-[#f4f1e6]"
-          >
-            Naturdagbog <span className="text-xs italic opacity-55">naturdagbok</span>
-          </Button>
+          />
         </Panel>
         <Panel>
-          <div className="flex items-center gap-2 px-2 py-1">
-            <button
-              type="button"
+          <div className="flex items-center gap-2">
+            <IconButton
+              Icon={muted ? VolumeX : Volume2}
+              label={muted ? "Sound off" : "Sound on"}
               onClick={() => {
                 audio.init();
                 setMuted(!muted);
               }}
-              className="pointer-events-auto text-sm text-[#e7e4d8]/75"
-            >
-              {muted ? "Sound off" : "Sound on"}
-            </button>
+            />
             <input
               type="range"
               min={0}
@@ -338,7 +478,9 @@ export function Hud() {
               <h2 className="text-lg text-[#f4f1e6]">Naturdagbog</h2>
               <p className="text-xs italic text-[#e7e4d8]/50">naturdagbok</p>
             </div>
-            <Button type="button" variant="ghost" size="icon" onClick={() => setJournalOpen(false)} aria-label="Luk naturdagbog" className="text-[#e7e4d8]/70 hover:bg-[#e7e4d8]/10">×</Button>
+            <Button type="button" variant="ghost" size="icon" onClick={() => setJournalOpen(false)} aria-label="Luk naturdagbog" className="min-h-11 min-w-11 text-[#e7e4d8]/70 hover:bg-[#e7e4d8]/10">
+              <X className="size-4" aria-hidden="true" />
+            </Button>
           </div>
           <form onSubmit={submitJournal}>
             <label htmlFor="nature-observation" className="text-sm text-[#e7e4d8]/75">Beskriv et fund, et sted eller et spor</label>
@@ -365,28 +507,19 @@ export function Hud() {
         </div>
       ) : null}
 
+      {/* a wordless first hint: a paw, then a pointing hand */}
       <div
-        className={`absolute left-1/2 top-4 w-64 -translate-x-1/2 text-center text-sm text-[#e7e4d8]/80 transition-opacity duration-1000 md:w-auto ${
+        className={`absolute left-1/2 top-4 flex -translate-x-1/2 items-center gap-3 text-[#e7e4d8]/70 transition-opacity duration-1000 ${
           hintSeen ? "opacity-0" : "opacity-100"
         }`}
+        aria-hidden="true"
       >
-        Walk with the arrow keys, WASD, the pad — or simply tap where you want to go.
+        <PawPrint className="size-6 animate-pulse" strokeWidth={1.4} />
+        <span className="text-lg opacity-50">→</span>
+        <Hand className="size-6" strokeWidth={1.4} />
       </div>
 
-      {note ? (
-        <div className="absolute bottom-6 left-1/2 w-72 -translate-x-1/2 rounded-2xl border border-white/10 bg-[#1d2620]/70 px-4 py-3 text-center text-sm text-[#e7e4d8]/85 shadow-lg backdrop-blur-md transition-opacity duration-700">
-          <p className="text-[#f4f1e6]">
-            {note.title} <span className="italic text-[#e7e4d8]/60">· {note.norwegian}</span>
-          </p>
-          <p className="mt-1 text-xs leading-relaxed text-[#e7e4d8]/65">{note.note}</p>
-        </div>
-      ) : null}
 
-      {discovery ? (
-        <div className="absolute right-4 top-4 w-44 rounded-2xl border border-white/10 bg-[#1d2620]/70 px-4 py-3 text-center text-sm text-[#f0ecdf] shadow-lg backdrop-blur-md md:left-1/2 md:right-auto md:top-16 md:w-72 md:-translate-x-1/2">
-          {discovery}
-        </div>
-      ) : null}
     </div>
   );
 }
