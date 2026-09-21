@@ -1058,7 +1058,10 @@ export function WorldCanvas() {
       }
       ctx.globalAlpha = 1;
 
+      if (state.den.invitation) drawInvitation(ctx, state.den.invitation.path, now);
+
       const drawables: Array<{ y: number; draw: () => void }> = [];
+      drawables.push({ y: DEN_MOUTH.y, draw: () => drawDenMouth(ctx, now, state.den.discovered) });
       for (const feature of FEATURES) {
         if (feature.kind === "heather" || feature.kind === "reed") continue;
         if (feature.x < cameraX - 90 || feature.x > cameraX + viewWidth + 90) continue;
