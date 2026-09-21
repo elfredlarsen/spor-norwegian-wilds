@@ -48,7 +48,7 @@ export function Hud() {
         <p className="mt-1 font-display text-lg text-mist/95">{stateLabel}</p>
       </div>
 
-      <div className={`absolute left-1/2 top-8 -translate-x-1/2 text-center transition-opacity duration-1000 ${explored ? "opacity-0" : "opacity-80"}`}>
+      <div className={`absolute left-1/2 top-20 w-48 -translate-x-1/2 text-center transition-opacity duration-1000 md:top-8 md:w-auto ${explored ? "opacity-0" : "opacity-80"}`}>
         <p className="hidden text-xs tracking-[0.08em] md:block">WASD to wander · Hold Space to rest · E to scent the wind</p>
         <p className="text-xs tracking-[0.08em] md:hidden">Wander gently. Pause when you wish.</p>
       </div>
