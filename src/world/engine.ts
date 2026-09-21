@@ -120,11 +120,13 @@ class WorldEngine {
     this.myUserId = myUserId;
     this.roleByUserId = roleByUserId;
 
+    console.log('BR start');
     const [worldRow, placementRows] = await Promise.all([
       supabase.from("world_state" as never).select("*").eq("pairing_id", pairingId).maybeSingle(),
       supabase.from("placements" as never).select("*").eq("pairing_id", pairingId).order("at", { ascending: true }),
     ]);
 
+    console.log('BR rows', JSON.stringify(worldRow.error), JSON.stringify(placementRows.error));
     if (worldRow.data) this.applyWorldStateRow(worldRow.data as unknown as WorldStateRow);
     if (placementRows.data) {
       const rows = placementRows.data as unknown as PlacementRow[];
@@ -154,7 +156,8 @@ class WorldEngine {
           this.emit();
         },
       )
-      .subscribe();
+      .subscribe((st: string) => console.log('BR channel', st));
+    console.log('BR end');
   }
 
   unbindRemote() {
