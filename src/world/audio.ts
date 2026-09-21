@@ -18,6 +18,8 @@ class ForestAudio {
   private volume = 0.45;
   private weather: WeatherKind = "clear";
   private waterNearness = 0;
+  private shelter = 0;
+  private warmth = 0;
   private bubbleTimer: number | null = null;
 
   init() {
