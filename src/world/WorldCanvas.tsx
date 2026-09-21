@@ -423,11 +423,13 @@ function drawFox(
   const appearance = participant === "elder"
     ? {
         coat: "#b9532f", warm: "#d97843", cream: "#f3dfbd", dark: "#422d28", innerEar: "#73403a",
-        scale: 1.06, headW: 9.2, headL: 8.2, earScale: 1.0, snoutL: 18.5, cheekR: 8, eyeScale: 1.0,
+        outline: "#63382f", scale: 1.06, bodyW: 18.5, headW: 10, headL: 8.6,
+        earScale: 1.04, snoutL: 18.8, cheekR: 7.7, eyeScale: 1.0, tailLift: 0,
       }
     : {
         coat: "#dc8646", warm: "#eca45f", cream: "#fff0cf", dark: "#50332d", innerEar: "#8b5148",
-        scale: 0.94, headW: 8.4, headL: 7.2, earScale: 1.08, snoutL: 16.5, cheekR: 9, eyeScale: 1.12,
+        outline: "#704238", scale: 0.94, bodyW: 17, headW: 9.4, headL: 8,
+        earScale: 1.12, snoutL: 16.8, cheekR: 8.8, eyeScale: 1.12, tailLift: -2,
       };
 
   ctx.save();
@@ -444,23 +446,31 @@ function drawFox(
   const bob = sensing === "drink" ? 4 : sensing === "rest" ? 5 : sensing === "dig" ? Math.sin(gait * 3) * 1.8 : moving ? Math.sin(gait) * 1.2 : Math.sin(gait * 0.25) * 0.5;
   const sway = moving ? Math.sin(gait * 0.5) * 0.28 : Math.sin(gait * 0.2) * 0.1;
 
-  // Broad, curved brush tail — the clearest fox silhouette from above.
+  // Oversized, softly curved brush tail, matching the picture-book reference.
   ctx.save();
   ctx.rotate(sway * 1.6);
   ctx.fillStyle = appearance.coat;
+  ctx.strokeStyle = appearance.outline;
+  ctx.lineWidth = 1.7;
+  ctx.lineJoin = "round";
   ctx.beginPath();
-  ctx.moveTo(-10, 2);
-  ctx.bezierCurveTo(-20, 15, -38, 15, -42, 4);
-  ctx.bezierCurveTo(-45, -5, -34, -11, -25, -7);
-  ctx.bezierCurveTo(-17, -4, -12, -2, -10, 2);
+  ctx.moveTo(-9, appearance.tailLift + 2);
+  ctx.bezierCurveTo(-18, 14, -38, 18, -47, 7);
+  ctx.bezierCurveTo(-55, -3, -48, -15, -37, -16);
+  ctx.bezierCurveTo(-24, -17, -17, -7, -9, appearance.tailLift + 2);
   ctx.fill();
+  ctx.stroke();
+  // The cream tip has a small uneven fur edge rather than a straight band.
   ctx.fillStyle = appearance.cream;
   ctx.beginPath();
-  ctx.moveTo(-33, 11);
-  ctx.bezierCurveTo(-42, 10, -47, 3, -42, -3);
-  ctx.bezierCurveTo(-37, -7, -32, -7, -29, -5);
-  ctx.bezierCurveTo(-34, 0, -34, 6, -33, 11);
+  ctx.moveTo(-38, 15);
+  ctx.lineTo(-35, 9);
+  ctx.lineTo(-39, 7);
+  ctx.lineTo(-36, 2);
+  ctx.bezierCurveTo(-42, -3, -48, -8, -49, -11);
+  ctx.bezierCurveTo(-55, -3, -49, 10, -38, 15);
   ctx.fill();
+  ctx.stroke();
   ctx.restore();
 
   // legs
@@ -475,13 +485,16 @@ function drawFox(
 
   // body
   ctx.fillStyle = appearance.coat;
+  ctx.strokeStyle = appearance.outline;
+  ctx.lineWidth = 1.5;
   ctx.beginPath();
-  ctx.ellipse(-1, bob * 0.2, 18, 10.8, 0, 0, Math.PI * 2);
+  ctx.ellipse(-1, bob * 0.2, appearance.bodyW, 10.8, 0, 0, Math.PI * 2);
   ctx.fill();
+  ctx.stroke();
   ctx.fillStyle = appearance.warm;
-  ctx.globalAlpha = 0.7;
+  ctx.globalAlpha = 0.58;
   ctx.beginPath();
-  ctx.ellipse(-2, bob * 0.2, 13, 6.2, 0, 0, Math.PI * 2);
+  ctx.ellipse(-3, bob * 0.2, appearance.bodyW - 5, 6.1, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.globalAlpha = 1;
 
@@ -490,46 +503,63 @@ function drawFox(
   ctx.translate(15, bob * 0.5);
   ctx.rotate(sensing === "sniff" ? -0.28 : sensing === "drink" ? 0.42 : sway * 0.5);
 
-  // Narrower, slightly wedged head base.
+  // Compact wedge-shaped head with a slightly wider cheek line.
   ctx.fillStyle = appearance.coat;
+  ctx.strokeStyle = appearance.outline;
+  ctx.lineWidth = 1.6;
+  ctx.lineJoin = "round";
   ctx.beginPath();
-  ctx.ellipse(0, 0, appearance.headW, appearance.headL, 0, 0, Math.PI * 2);
+  ctx.moveTo(-7, 0);
+  ctx.quadraticCurveTo(-4, -appearance.headL, 2, -appearance.headW);
+  ctx.quadraticCurveTo(8, -8, 10.5, -5.3);
+  ctx.lineTo(12.5, 0);
+  ctx.lineTo(10.5, 5.3);
+  ctx.quadraticCurveTo(8, 8, 2, appearance.headW);
+  ctx.quadraticCurveTo(-4, appearance.headL, -7, 0);
   ctx.fill();
+  ctx.stroke();
 
-  // More upright triangular ears, with darker inner fur.
+  // Tall, upright ears with pale inner tufts like the front-view reference.
   const earScale = appearance.earScale;
   ctx.fillStyle = appearance.coat;
   ctx.beginPath();
-  ctx.moveTo(-5, -7);
-  ctx.lineTo(-10, -20 * earScale);
-  ctx.lineTo(2, -9);
+  ctx.moveTo(-3.5, -7);
+  ctx.lineTo(-8.5, -20 * earScale);
+  ctx.lineTo(4, -9);
   ctx.closePath();
-  ctx.moveTo(-5, 7);
-  ctx.lineTo(-10, 20 * earScale);
-  ctx.lineTo(2, 9);
+  ctx.moveTo(-3.5, 7);
+  ctx.lineTo(-8.5, 20 * earScale);
+  ctx.lineTo(4, 9);
   ctx.closePath();
   ctx.fill();
-  ctx.fillStyle = appearance.innerEar;
+  ctx.stroke();
+  ctx.fillStyle = appearance.cream;
   ctx.beginPath();
-  ctx.moveTo(-5, -8);
-  ctx.lineTo(-8.5, -16 * earScale);
-  ctx.lineTo(0, -9);
+  ctx.moveTo(-4, -9);
+  ctx.lineTo(-7.2, -16.7 * earScale);
+  ctx.lineTo(1.5, -9.6);
   ctx.closePath();
-  ctx.moveTo(-5, 8);
-  ctx.lineTo(-8.5, 16 * earScale);
-  ctx.lineTo(0, 9);
+  ctx.moveTo(-4, 9);
+  ctx.lineTo(-7.2, 16.7 * earScale);
+  ctx.lineTo(1.5, 9.6);
   ctx.closePath();
   ctx.fill();
 
-  // Prominent cheek fluff framing the muzzle.
+  // Pointed cheek brushes frame the pale muzzle mask.
   ctx.fillStyle = appearance.cream;
   ctx.beginPath();
-  ctx.ellipse(-2, -7.5, appearance.cheekR, appearance.cheekR * 0.72, -0.22, 0, Math.PI * 2);
-  ctx.ellipse(-2, 7.5, appearance.cheekR, appearance.cheekR * 0.72, 0.22, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.ellipse(-6.5, -10, appearance.cheekR * 0.55, appearance.cheekR * 0.42, -0.55, 0, Math.PI * 2);
-  ctx.ellipse(-6.5, 10, appearance.cheekR * 0.55, appearance.cheekR * 0.42, 0.55, 0, Math.PI * 2);
+  ctx.moveTo(2, -8.2);
+  ctx.quadraticCurveTo(7, -10.5, 11, -8);
+  ctx.lineTo(8.5, -5.3);
+  ctx.lineTo(12.8, -3.3);
+  ctx.quadraticCurveTo(8, -1, 4.5, -0.4);
+  ctx.lineTo(4.5, 0.4);
+  ctx.quadraticCurveTo(8, 1, 12.8, 3.3);
+  ctx.lineTo(8.5, 5.3);
+  ctx.lineTo(11, 8);
+  ctx.quadraticCurveTo(7, 10.5, 2, 8.2);
+  ctx.quadraticCurveTo(5.5, 4.5, 6, 0);
+  ctx.quadraticCurveTo(5.5, -4.5, 2, -8.2);
   ctx.fill();
 
   // Longer, more pointed snout with a neat dark nose.
@@ -540,6 +570,11 @@ function drawFox(
   ctx.quadraticCurveTo(snoutL * 0.42, -3.2, snoutL, 0);
   ctx.quadraticCurveTo(snoutL * 0.42, 3.2, 0, 4.6);
   ctx.quadraticCurveTo(snoutL * 0.2, 0, 0, -4.6);
+  ctx.fill();
+  // Small pale brow marks make the expression gentle without humanising it.
+  ctx.beginPath();
+  ctx.ellipse(2.2, -5.4, 1.7, 0.85, 0, 0, Math.PI * 2);
+  ctx.ellipse(2.2, 5.4, 1.7, 0.85, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.fillStyle = appearance.dark;
   ctx.beginPath();
