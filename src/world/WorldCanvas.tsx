@@ -1,8 +1,21 @@
 import { useEffect, useRef } from "react";
 import { audio } from "./audio";
+import {
+  DEN_EXIT,
+  DEN_HEIGHT,
+  DEN_MOUTH,
+  DEN_NEAR_RADIUS,
+  DEN_WIDTH,
+  KEEPSAKES,
+  MATERIALS,
+  clampInsideDen,
+  invitationPath,
+  nearestNiche,
+} from "./den";
+import { drawDenInterior, drawDenMouth, drawInvitation } from "./DenScene";
 import { worldEngine } from "./engine";
-import { useUiStore } from "./ui-store";
-import type { Feature, ParticipantId, Placement, WeatherKind } from "./types";
+import { useUiStore, type Carried } from "./ui-store";
+import type { DenKeepsake, Feature, ParticipantId, Placement, WeatherKind } from "./types";
 import {
   FEATURES,
   WORLD_HEIGHT,
