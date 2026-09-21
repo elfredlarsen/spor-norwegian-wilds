@@ -2,7 +2,7 @@ import { create } from "zustand";
 import type { ParticipantId, PlacementKind, WeatherKind } from "./types";
 
 export type Tool = PlacementKind;
-export type SenseAction = "sniff" | "drink" | "dig";
+export type SenseAction = "sniff" | "drink" | "dig" | "rest";
 
 type UiStore = {
   participant: ParticipantId;

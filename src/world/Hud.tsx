@@ -208,7 +208,7 @@ export function Hud() {
 
       <div className="absolute bottom-4 left-4 flex flex-col gap-2">
         <Panel>
-          <div className="grid grid-cols-3 gap-1">
+          <div className="grid grid-cols-4 gap-1">
             <SoftButton onClick={() => requestSense("sniff")} title="Scent the air and reveal a faint trail">
               Sniff<span className="block text-xs italic text-[#e7e4d8]/45">snuse</span>
             </SoftButton>
@@ -218,6 +218,9 @@ export function Hud() {
             </SoftButton>
             <SoftButton onClick={() => requestSense("dig")} title="Gently paw through deep moss">
               Paw<span className="block text-xs italic text-[#e7e4d8]/45">grave</span>
+            </SoftButton>
+            <SoftButton onClick={() => requestSense("rest")} title="Curl up and rest in the moss">
+              Rest<span className="block text-xs italic text-[#e7e4d8]/45">hvile</span>
             </SoftButton>
           </div>
         </Panel>
