@@ -27,6 +27,7 @@ export function useMultiplayerSync(): MultiplayerStatus {
   const bound = useRef<string | null>(null);
 
   useEffect(() => {
+    console.log('MP effect', { authLoading, user: !!user });
     if (authLoading) return;
     if (!user) {
       setStatus({ kind: "signed-out" });
@@ -36,6 +37,7 @@ export function useMultiplayerSync(): MultiplayerStatus {
     setStatus({ kind: "loading" });
     getMyPairing()
       .then(async (pairing) => {
+        console.log('MP pairing', JSON.stringify(pairing), 'cancelled', cancelled);
         if (cancelled) return;
         if (!pairing) {
           setStatus({ kind: "unpaired" });
@@ -54,7 +56,8 @@ export function useMultiplayerSync(): MultiplayerStatus {
         setParticipant(pairing.role);
         setStatus({ kind: "paired", role: pairing.role });
       })
-      .catch(() => {
+      .catch((e) => {
+        console.log('MP error', String(e));
         if (!cancelled) setStatus({ kind: "unpaired" });
       });
     return () => {
