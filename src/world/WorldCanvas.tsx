@@ -68,27 +68,60 @@ function seeded(seed: number) {
 
 type Keys = Record<string, boolean>;
 
+/** Deterministic per-feature jitter so repeated trees/rocks don't clone each other, without flickering between frames. */
+function hash2(a: number, b: number): number {
+  const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453;
+  return s - Math.floor(s);
+}
+
 function paintGround(canvas: HTMLCanvasElement) {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
   const gradient = ctx.createLinearGradient(0, 0, WORLD_WIDTH * 0.4, WORLD_HEIGHT);
-  gradient.addColorStop(0, "#5c6f54");
-  gradient.addColorStop(0.5, "#54684f");
-  gradient.addColorStop(1, "#4a5d48");
+  gradient.addColorStop(0, "#63764f");
+  gradient.addColorStop(0.35, "#57704e");
+  gradient.addColorStop(0.7, "#4d654a");
+  gradient.addColorStop(1, "#425840");
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
 
-  // soft moss patches
+  // soft moss patches, in a wider spread of warm and cool greens
   for (let index = 0; index < 900; index += 1) {
     const x = Math.random() * WORLD_WIDTH;
     const y = Math.random() * WORLD_HEIGHT;
     const radius = 24 + Math.random() * 90;
     const tone = Math.random();
     ctx.globalAlpha = 0.07 + Math.random() * 0.08;
-    ctx.fillStyle = tone > 0.66 ? "#6f8560" : tone > 0.33 ? "#465a44" : "#7a8a63";
+    ctx.fillStyle = tone > 0.75 ? "#7c9463" : tone > 0.5 ? "#6f8560" : tone > 0.25 ? "#465a44" : "#7a8a63";
     ctx.beginPath();
     ctx.ellipse(x, y, radius, radius * 0.7, Math.random() * Math.PI, 0, Math.PI * 2);
     ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  // small wildflower clusters scattered through the undergrowth
+  const FLOWER_COLORS = ["#f5f2e3", "#f0d977", "#c9d7ee"];
+  for (let cluster = 0; cluster < 340; cluster += 1) {
+    const cx = Math.random() * WORLD_WIDTH;
+    const cy = Math.random() * WORLD_HEIGHT;
+    const color = FLOWER_COLORS[cluster % FLOWER_COLORS.length] ?? "#f5f2e3";
+    const petals = 3 + Math.floor(Math.random() * 3);
+    for (let bloom = 0; bloom < petals; bloom += 1) {
+      const fx = cx + (Math.random() - 0.5) * 30;
+      const fy = cy + (Math.random() - 0.5) * 22;
+      ctx.globalAlpha = 0.75 + Math.random() * 0.2;
+      ctx.fillStyle = color;
+      for (let petal = 0; petal < 4; petal += 1) {
+        const angle = (petal / 4) * Math.PI * 2;
+        ctx.beginPath();
+        ctx.ellipse(fx + Math.cos(angle) * 1.6, fy + Math.sin(angle) * 1.6, 1.5, 1, angle, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.fillStyle = "#d9a441";
+      ctx.beginPath();
+      ctx.arc(fx, fy, 0.8, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
   ctx.globalAlpha = 1;
 
@@ -207,13 +240,14 @@ function drawTree(ctx: CanvasRenderingContext2D, feature: Feature, time: number,
       { r: 29, c: palette.pine[1], a: 1 },
       { r: 18, c: palette.pine[2], a: 1 },
     ];
-    for (const layer of layers) {
+    for (const [layerIndex, layer] of layers.entries()) {
       ctx.fillStyle = layer.c;
       ctx.globalAlpha = layer.a;
       ctx.beginPath();
       for (let spoke = 0; spoke < 11; spoke += 1) {
         const angle = (spoke / 11) * Math.PI * 2;
-        const radius = layer.r * feature.scale * (0.78 + ((spoke * 37) % 10) / 34);
+        const jitter = hash2(feature.x + spoke * 3.1, feature.y + layerIndex * 5.7);
+        const radius = layer.r * feature.scale * (0.74 + jitter * 0.34);
         const px = Math.cos(angle) * radius + sway;
         const py = Math.sin(angle) * radius * 0.86;
         if (spoke === 0) ctx.moveTo(px, py);
@@ -222,6 +256,12 @@ function drawTree(ctx: CanvasRenderingContext2D, feature: Feature, time: number,
       ctx.closePath();
       ctx.fill();
     }
+    // a soft patch of light catching the sun-facing side of the canopy
+    ctx.globalAlpha = 0.28;
+    ctx.fillStyle = palette.pine[2];
+    ctx.beginPath();
+    ctx.ellipse(-9 * feature.scale + sway, -14 * feature.scale, 12 * feature.scale, 9 * feature.scale, -0.4, 0, Math.PI * 2);
+    ctx.fill();
     ctx.globalAlpha = 1;
   } else {
     ctx.fillStyle = "#d9d5c8";
@@ -229,16 +269,25 @@ function drawTree(ctx: CanvasRenderingContext2D, feature: Feature, time: number,
     ctx.ellipse(0, 0, 5.5 * feature.scale, 4 * feature.scale, 0, 0, Math.PI * 2);
     ctx.fill();
     if (palette.leaf) {
+      // a darker undertone first, so the clumps above read as a rounded, layered canopy
+      ctx.fillStyle = "#000000";
+      ctx.globalAlpha = 0.12;
+      ctx.beginPath();
+      ctx.ellipse(sway * 0.5, 3, 23 * feature.scale, 17 * feature.scale, 0, 0, Math.PI * 2);
+      ctx.fill();
+
       ctx.fillStyle = palette.leaf;
       ctx.globalAlpha = 0.92;
-      for (let clump = 0; clump < 6; clump += 1) {
-        const angle = (clump / 6) * Math.PI * 2;
+      const clumpCount = 8;
+      for (let clump = 0; clump < clumpCount; clump += 1) {
+        const angle = (clump / clumpCount) * Math.PI * 2 + hash2(feature.x, feature.y + clump) * 0.5;
+        const jitter = 0.8 + hash2(feature.x + clump * 2.2, feature.y) * 0.4;
         ctx.beginPath();
         ctx.ellipse(
-          Math.cos(angle) * 20 * feature.scale + sway,
-          Math.sin(angle) * 16 * feature.scale,
-          17 * feature.scale,
-          13 * feature.scale,
+          Math.cos(angle) * 19 * feature.scale * jitter + sway,
+          Math.sin(angle) * 15 * feature.scale * jitter,
+          15 * feature.scale * jitter,
+          12 * feature.scale * jitter,
           0,
           0,
           Math.PI * 2,
@@ -246,8 +295,14 @@ function drawTree(ctx: CanvasRenderingContext2D, feature: Feature, time: number,
         ctx.fill();
       }
       ctx.fillStyle = palette.leafHighlight ?? palette.leaf;
+      ctx.globalAlpha = 0.85;
       ctx.beginPath();
-      ctx.ellipse(sway, -2, 19 * feature.scale, 15 * feature.scale, 0, 0, Math.PI * 2);
+      ctx.ellipse(sway - 4 * feature.scale, -6 * feature.scale, 14 * feature.scale, 10 * feature.scale, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // a small brighter fleck for a dappled catch-light
+      ctx.globalAlpha = 0.5;
+      ctx.beginPath();
+      ctx.ellipse(sway - 8 * feature.scale, -9 * feature.scale, 5 * feature.scale, 3.5 * feature.scale, 0, 0, Math.PI * 2);
       ctx.fill();
       ctx.globalAlpha = 1;
     } else {
@@ -278,6 +333,7 @@ function drawTree(ctx: CanvasRenderingContext2D, feature: Feature, time: number,
 }
 
 function drawRock(ctx: CanvasRenderingContext2D, feature: Feature) {
+  const tilt = (hash2(feature.x, feature.y) - 0.5) * 0.6;
   ctx.save();
   ctx.translate(feature.x, feature.y);
   ctx.globalAlpha = 0.2;
@@ -286,16 +342,24 @@ function drawRock(ctx: CanvasRenderingContext2D, feature: Feature) {
   ctx.ellipse(5, 6, 30 * feature.scale, 15 * feature.scale, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.globalAlpha = 1;
-  ctx.fillStyle = "#8b8d89";
+  // cool blue-grey stone, closer to weathered granite than warm brown
+  ctx.fillStyle = "#7d838c";
   ctx.beginPath();
-  ctx.ellipse(0, 0, 28 * feature.scale, 20 * feature.scale, 0.3, 0, Math.PI * 2);
+  ctx.ellipse(0, 0, 28 * feature.scale, 20 * feature.scale, 0.3 + tilt, 0, Math.PI * 2);
   ctx.fill();
-  ctx.fillStyle = "#a3a59f";
+  ctx.fillStyle = "#a7adb3";
   ctx.beginPath();
-  ctx.ellipse(-5 * feature.scale, -5 * feature.scale, 17 * feature.scale, 11 * feature.scale, 0.3, 0, Math.PI * 2);
+  ctx.ellipse(-5 * feature.scale, -5 * feature.scale, 17 * feature.scale, 11 * feature.scale, 0.3 + tilt, 0, Math.PI * 2);
   ctx.fill();
+  // a fleck of pale highlight catching the light
+  ctx.fillStyle = "#c7cdd0";
+  ctx.globalAlpha = 0.6;
+  ctx.beginPath();
+  ctx.ellipse(-9 * feature.scale, -9 * feature.scale, 6 * feature.scale, 3.5 * feature.scale, 0.3 + tilt, 0, Math.PI * 2);
+  ctx.fill();
+  // lichen/moss creeping up the shaded side
   ctx.fillStyle = "#6f8355";
-  ctx.globalAlpha = 0.55;
+  ctx.globalAlpha = 0.5;
   ctx.beginPath();
   ctx.ellipse(8 * feature.scale, 7 * feature.scale, 11 * feature.scale, 6 * feature.scale, 0.2, 0, Math.PI * 2);
   ctx.fill();
