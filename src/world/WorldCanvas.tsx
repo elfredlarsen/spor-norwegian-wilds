@@ -33,6 +33,24 @@ import {
 const WALK_SPEED = 128;
 const WATER_SPEED = 74;
 
+// Fox visuals: a single top-down sprite rotated to face the travel angle,
+// plus a breathing idle-frame loop used whenever the fox isn't moving.
+const FOX_SPRITE_SRC = "/fox/fox_sprite.png";
+const FOX_IDLE_FRAME_COUNT = 8;
+const FOX_IDLE_FRAME_MS = 110;
+const FOX_VISUAL_LENGTH = 78; // on-screen nose-to-tail length, matches the old drawn silhouette
+
+function loadImage(src: string): HTMLImageElement {
+  const img = new Image();
+  img.src = src;
+  return img;
+}
+
+const foxSpriteImage = loadImage(FOX_SPRITE_SRC);
+const foxIdleImages = Array.from({ length: FOX_IDLE_FRAME_COUNT }, (_, index) =>
+  loadImage(`/fox/idle/fox_idle_${String(index).padStart(2, "0")}.png`),
+);
+
 type Bird = { x: number; y: number; homeX: number; homeY: number; vx: number; vy: number; airborne: boolean; kind: "tit" | "bullfinch" };
 type Ripple = { x: number; y: number; born: number; strength: number };
 type ScentWisp = { x: number; y: number; born: number; phase: number };
@@ -419,205 +437,40 @@ function drawFox(
   moving: boolean,
   participant: ParticipantId,
   sensing: "sniff" | "drink" | "dig" | "rest" | null,
+  now: number,
 ) {
-  const appearance = participant === "elder"
-    ? {
-        coat: "#b9532f", warm: "#d97843", cream: "#f3dfbd", dark: "#422d28", innerEar: "#73403a",
-        outline: "#63382f", scale: 1.06, bodyW: 17.8, headW: 10.4, headL: 8.8,
-        earScale: 1.04, snoutL: 17.8, eyeScale: 1.0, tailLift: 0,
-      }
-    : {
-        coat: "#dc8646", warm: "#eca45f", cream: "#fff0cf", dark: "#50332d", innerEar: "#8b5148",
-        outline: "#704238", scale: 0.94, bodyW: 16.6, headW: 9.8, headL: 8.3,
-        earScale: 1.1, snoutL: 16.4, eyeScale: 1.12, tailLift: -2,
-      };
+  // Fox 1 (elder) and Fox 2 (child) currently share one sprite, distinguished only by size.
+  const scale = participant === "elder" ? 1.06 : 0.94;
 
   ctx.save();
   ctx.translate(x, y);
-  ctx.scale(appearance.scale, appearance.scale);
+
   ctx.globalAlpha = 0.22;
   ctx.fillStyle = "#1e2a1f";
   ctx.beginPath();
-  ctx.ellipse(0, 5, 20, 9, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, 14 * scale, 15 * scale, 7 * scale, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.globalAlpha = 1;
-  ctx.rotate(angle + (sensing === "rest" ? 0.22 : 0));
+
+  ctx.scale(scale, scale);
+  // The sprite's resting pose faces up (screen north); rotate it onto the travel angle,
+  // which is measured from +x the way the old hand-drawn fox was.
+  ctx.rotate(angle + Math.PI / 2 + (sensing === "rest" ? 0.22 : 0));
 
   const bob = sensing === "drink" ? 4 : sensing === "rest" ? 5 : sensing === "dig" ? Math.sin(gait * 3) * 1.8 : moving ? Math.sin(gait) * 1.2 : Math.sin(gait * 0.25) * 0.5;
-  const sway = moving ? Math.sin(gait * 0.5) * 0.28 : Math.sin(gait * 0.2) * 0.1;
+  ctx.translate(0, bob * 0.2);
 
-  // Oversized, softly curved brush tail, matching the picture-book reference.
-  ctx.save();
-  ctx.rotate(sway * 1.6);
-  ctx.fillStyle = appearance.coat;
-  ctx.strokeStyle = appearance.outline;
-  ctx.lineWidth = 1.7;
-  ctx.lineJoin = "round";
-  ctx.beginPath();
-  ctx.moveTo(-9, appearance.tailLift + 2);
-  ctx.bezierCurveTo(-18, 15, -39, 19, -48, 8);
-  ctx.bezierCurveTo(-57, -3, -49, -17, -37, -17);
-  ctx.bezierCurveTo(-23, -18, -16, -7, -9, appearance.tailLift + 2);
-  ctx.fill();
-  ctx.stroke();
-  // The cream tip has a small uneven fur edge rather than a straight band.
-  ctx.fillStyle = appearance.cream;
-  ctx.beginPath();
-  ctx.moveTo(-38, 15);
-  ctx.lineTo(-35, 9);
-  ctx.lineTo(-39, 7);
-  ctx.lineTo(-36, 2);
-  ctx.bezierCurveTo(-42, -3, -48, -8, -49, -11);
-  ctx.bezierCurveTo(-55, -3, -49, 10, -38, 15);
-  ctx.fill();
-  ctx.stroke();
-  ctx.restore();
+  let sprite = foxSpriteImage;
+  if (!moving) {
+    const frame = foxIdleImages[Math.floor(now / FOX_IDLE_FRAME_MS) % FOX_IDLE_FRAME_COUNT];
+    if (frame && frame.complete && frame.naturalWidth > 0) sprite = frame;
+  }
 
-  // legs
-  ctx.fillStyle = appearance.dark;
-  const step = moving ? Math.sin(gait) * 3 : 0;
-  ctx.beginPath();
-  ctx.ellipse(6, -7 + step * 0.4, 3.2, 2.4, 0, 0, Math.PI * 2);
-  ctx.ellipse(6, 7 - step * 0.4, 3.2, 2.4, 0, 0, Math.PI * 2);
-  ctx.ellipse(-6, -7 - step * 0.4, 3.2, 2.4, 0, 0, Math.PI * 2);
-  ctx.ellipse(-6, 7 + step * 0.4, 3.2, 2.4, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  // body
-  ctx.fillStyle = appearance.coat;
-  ctx.strokeStyle = appearance.outline;
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.ellipse(-1, bob * 0.2, appearance.bodyW, 10.8, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.stroke();
-  ctx.fillStyle = appearance.warm;
-  ctx.globalAlpha = 0.58;
-  ctx.beginPath();
-  ctx.ellipse(-3, bob * 0.2, appearance.bodyW - 5, 6.1, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.globalAlpha = 1;
-
-  // A small chest bib peeks from beneath the head, as in the reference.
-  ctx.fillStyle = appearance.cream;
-  ctx.beginPath();
-  ctx.moveTo(7.5, -7.2);
-  ctx.quadraticCurveTo(13, -6, 13.8, 0);
-  ctx.quadraticCurveTo(13, 6, 7.5, 7.2);
-  ctx.lineTo(9.2, 3.2);
-  ctx.lineTo(7.8, 0);
-  ctx.lineTo(9.2, -3.2);
-  ctx.closePath();
-  ctx.fill();
-
-  // head
-  ctx.save();
-  ctx.translate(15, bob * 0.5);
-  ctx.rotate(sensing === "sniff" ? -0.28 : sensing === "drink" ? 0.42 : sway * 0.5);
-
-  // Compact wedge-shaped head with a slightly wider cheek line.
-  ctx.fillStyle = appearance.coat;
-  ctx.strokeStyle = appearance.outline;
-  ctx.lineWidth = 1.6;
-  ctx.lineJoin = "round";
-  ctx.beginPath();
-  ctx.moveTo(-7, 0);
-  ctx.quadraticCurveTo(-4, -appearance.headL, 2, -appearance.headW);
-  ctx.quadraticCurveTo(8, -8, 10.5, -5.3);
-  ctx.lineTo(12.5, 0);
-  ctx.lineTo(10.5, 5.3);
-  ctx.quadraticCurveTo(8, 8, 2, appearance.headW);
-  ctx.quadraticCurveTo(-4, appearance.headL, -7, 0);
-  ctx.fill();
-  ctx.stroke();
-
-  // Warm forehead plane keeps the face predominantly fox-red.
-  ctx.fillStyle = appearance.warm;
-  ctx.globalAlpha = 0.55;
-  ctx.beginPath();
-  ctx.moveTo(-3.5, 0);
-  ctx.quadraticCurveTo(1, -6.4, 7, -6.1);
-  ctx.lineTo(9.5, 0);
-  ctx.lineTo(7, 6.1);
-  ctx.quadraticCurveTo(1, 6.4, -3.5, 0);
-  ctx.fill();
-  ctx.globalAlpha = 1;
-
-  // Tall, upright ears with pale inner tufts like the front-view reference.
-  const earScale = appearance.earScale;
-  ctx.fillStyle = appearance.coat;
-  ctx.beginPath();
-  ctx.moveTo(-3.5, -7);
-  ctx.lineTo(-8.5, -20 * earScale);
-  ctx.lineTo(4, -9);
-  ctx.closePath();
-  ctx.moveTo(-3.5, 7);
-  ctx.lineTo(-8.5, 20 * earScale);
-  ctx.lineTo(4, 9);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-  ctx.fillStyle = appearance.cream;
-  ctx.beginPath();
-  ctx.moveTo(-4, -9);
-  ctx.lineTo(-7.2, -16.7 * earScale);
-  ctx.lineTo(1.5, -9.6);
-  ctx.closePath();
-  ctx.moveTo(-4, 9);
-  ctx.lineTo(-7.2, 16.7 * earScale);
-  ctx.lineTo(1.5, 9.6);
-  ctx.closePath();
-  ctx.fill();
-
-  // Two restrained cheek flashes frame the muzzle without whitening the face.
-  ctx.fillStyle = appearance.cream;
-  ctx.beginPath();
-  ctx.moveTo(6.8, -7.2);
-  ctx.quadraticCurveTo(10.5, -8.8, 13.1, -6.4);
-  ctx.lineTo(11.2, -4.7);
-  ctx.lineTo(13.8, -3.3);
-  ctx.quadraticCurveTo(10, -2.5, 8.3, -1.2);
-  ctx.lineTo(8.3, 1.2);
-  ctx.quadraticCurveTo(10, 2.5, 13.8, 3.3);
-  ctx.lineTo(11.2, 4.7);
-  ctx.lineTo(13.1, 6.4);
-  ctx.quadraticCurveTo(10.5, 8.8, 6.8, 7.2);
-  ctx.quadraticCurveTo(9.2, 3.8, 9.6, 0);
-  ctx.quadraticCurveTo(9.2, -3.8, 6.8, -7.2);
-  ctx.fill();
-
-  // A narrow cream muzzle leaves the brow and cheeks visibly orange.
-  ctx.fillStyle = appearance.cream;
-  const snoutL = appearance.snoutL;
-  ctx.beginPath();
-  ctx.moveTo(8, -3.7);
-  ctx.quadraticCurveTo(snoutL * 0.62, -2.7, snoutL, 0);
-  ctx.quadraticCurveTo(snoutL * 0.62, 2.7, 8, 3.7);
-  ctx.quadraticCurveTo(10.2, 0, 8, -3.7);
-  ctx.fill();
-  // Small pale brow marks echo the reference's gentle expression.
-  ctx.beginPath();
-  ctx.ellipse(5, -5.6, 1.6, 0.78, 0, 0, Math.PI * 2);
-  ctx.ellipse(5, 5.6, 1.6, 0.78, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = appearance.dark;
-  ctx.beginPath();
-  ctx.ellipse(snoutL + 0.8, 0, 1.6, 1.15, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Bright, gentle eyes with a small catch-light.
-  const eyeR = 1.45 * appearance.eyeScale;
-  ctx.fillStyle = appearance.dark;
-  ctx.beginPath();
-  ctx.ellipse(7.8, -4.5, eyeR, eyeR * 1.2, 0, 0, Math.PI * 2);
-  ctx.ellipse(7.8, 4.5, eyeR, eyeR * 1.2, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = appearance.cream;
-  ctx.beginPath();
-  ctx.arc(8.4, -5, 0.48 * appearance.eyeScale, 0, Math.PI * 2);
-  ctx.arc(8.4, 4, 0.48 * appearance.eyeScale, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.restore();
+  if (sprite.complete && sprite.naturalWidth > 0) {
+    const h = FOX_VISUAL_LENGTH;
+    const w = h * (sprite.naturalWidth / sprite.naturalHeight);
+    ctx.drawImage(sprite, -w / 2, -h / 2, w, h);
+  }
 
   ctx.restore();
 }
@@ -890,6 +743,7 @@ export function WorldCanvas() {
         moving,
         participant,
         resting ? denActionKind : null,
+        now,
       );
       ctx.restore();
 
@@ -1319,7 +1173,7 @@ export function WorldCanvas() {
       }
       drawables.push({
         y: current.y,
-        draw: () => drawFox(ctx, current.x, current.y, angle, gait, moving, participant, now < actionUntil ? actionKind : null),
+        draw: () => drawFox(ctx, current.x, current.y, angle, gait, moving, participant, now < actionUntil ? actionKind : null, now),
       });
       // the other participant rests quietly where they last wandered
       const other: ParticipantId = participant === "elder" ? "child" : "elder";
@@ -1328,7 +1182,7 @@ export function WorldCanvas() {
         y: otherPosition.y,
         draw: () => {
           ctx.globalAlpha = 0.45;
-          drawFox(ctx, otherPosition.x, otherPosition.y, -0.4, 0, false, other, null);
+          drawFox(ctx, otherPosition.x, otherPosition.y, -0.4, 0, false, other, null, now);
           ctx.globalAlpha = 1;
         },
       });
