@@ -643,6 +643,28 @@ function drawPlacement(ctx: CanvasRenderingContext2D, item: Placement, time: num
     ctx.quadraticCurveTo(2, -9, 8, -10);
     ctx.stroke();
   }
+  if (item.kind === "howl") {
+    // A call fades from the world over about twenty minutes — a signal, not a decoration.
+    const ageMs = time - item.at;
+    const fade = Math.max(0, 1 - ageMs / (20 * 60 * 1000));
+    if (fade > 0) {
+      const pulse = (time * 0.0012 + item.variant) % 1;
+      for (let ring = 0; ring < 2; ring += 1) {
+        const ringPhase = (pulse + ring * 0.5) % 1;
+        ctx.strokeStyle = `rgba(224, 200, 160, ${fade * (1 - ringPhase) * 0.55})`;
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 8 + ringPhase * 46, 4 + ringPhase * 24, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = fade;
+      ctx.fillStyle = "#e0c8a0";
+      ctx.beginPath();
+      ctx.arc(0, 0, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+  }
   ctx.restore();
 }
 
@@ -679,7 +701,7 @@ function drawFox(
   gait: number,
   moving: boolean,
   participant: ParticipantId,
-  sensing: "sniff" | "drink" | "dig" | "rest" | null,
+  sensing: "dig" | "howl" | "listen" | null,
   now: number,
 ) {
   // Fox 1 (elder) and Fox 2 (child) currently share one sprite, distinguished only by size.
@@ -700,9 +722,19 @@ function drawFox(
   const wobble = moving ? Math.sin(gait * 2) * 0.04 : 0;
   // The sprite's resting pose faces up (screen north); rotate it onto the travel angle,
   // which is measured from +x the way the old hand-drawn fox was.
-  ctx.rotate(angle + Math.PI / 2 + (sensing === "rest" ? 0.22 : 0) + wobble);
+  ctx.rotate(angle + Math.PI / 2 + wobble);
 
-  const bob = sensing === "drink" ? 4 : sensing === "rest" ? 5 : sensing === "dig" ? Math.sin(gait * 3) * 1.8 : moving ? Math.sin(gait) * 1.2 : Math.sin(gait * 0.25) * 0.5;
+  // dig: paws working the moss. howl: a rhythmic call. listen: nearly motionless, ears up.
+  const bob =
+    sensing === "dig"
+      ? Math.sin(gait * 3) * 1.8
+      : sensing === "howl"
+        ? Math.sin(gait * 4) * 2.5
+        : sensing === "listen"
+          ? Math.sin(gait * 0.1) * 0.2
+          : moving
+            ? Math.sin(gait) * 1.2
+            : Math.sin(gait * 0.25) * 0.5;
   ctx.translate(0, bob * 0.2);
 
   let sprite = foxSpriteImage;
@@ -713,7 +745,13 @@ function drawFox(
 
   if (sprite.complete && sprite.naturalWidth > 0) {
     // A gentle squash-and-stretch on the gait cycle gives the run some spring, without new art.
-    const stretch = moving ? Math.sin(gait) * 0.05 : sensing === "dig" ? Math.sin(gait * 3) * 0.03 : 0;
+    const stretch = moving
+      ? Math.sin(gait) * 0.05
+      : sensing === "dig"
+        ? Math.sin(gait * 3) * 0.03
+        : sensing === "howl"
+          ? Math.max(0, Math.sin(gait * 4)) * 0.08
+          : 0;
     const h = FOX_VISUAL_LENGTH * (1 + stretch);
     const w = FOX_VISUAL_LENGTH * (sprite.naturalWidth / sprite.naturalHeight) * (1 - stretch * 0.6);
     ctx.drawImage(sprite, -w / 2, -h / 2, w, h);
@@ -751,7 +789,7 @@ export function WorldCanvas() {
     let cameraY = 0;
     let cameraReady = false;
     let actionUntil = 0;
-    let actionKind: "sniff" | "drink" | "dig" | "rest" | null = null;
+    let actionKind: "dig" | "howl" | "listen" | null = null;
     let lastSenseNonce = 0;
     let lastDenNonce = 0;
     let denFox = { x: DEN_EXIT.x, y: DEN_EXIT.y - 60 };
@@ -759,8 +797,6 @@ export function WorldCanvas() {
     let denWalkTarget: { x: number; y: number } | null = null;
     let denView = { scale: 1, offsetX: 0, offsetY: 0 };
     let denSinceFootstep = 0;
-    let denActionUntil = 0;
-    let denActionKind: "sniff" | "drink" | "dig" | "rest" | null = null;
     let lastWeather: WeatherKind = worldEngine.state.weather.kind;
     let lastRainAt = lastWeather === "rain" ? performance.now() : -Infinity;
     const random = seeded(7139);
@@ -806,6 +842,12 @@ export function WorldCanvas() {
       drift: Math.random() * Math.PI * 2,
       size: 1.4 + Math.random() * 1.8,
     }));
+    const auroraStars = Array.from({ length: 60 }, () => ({
+      x: Math.random(),
+      y: Math.random(),
+      size: 0.6 + Math.random() * 1.1,
+      phase: Math.random() * Math.PI * 2,
+    }));
     const mistBlobs = Array.from({ length: 26 }, () => ({
       x: Math.random(),
       y: Math.random(),
@@ -835,7 +877,7 @@ export function WorldCanvas() {
         event.preventDefault();
         useUiStore.getState().markHintSeen();
       }
-      if (!event.repeat && event.key.toLowerCase() === "e") useUiStore.getState().requestSense("sniff");
+      if (!event.repeat && event.key.toLowerCase() === "e") useUiStore.getState().requestSense("listen");
     };
     const onKeyUp = (event: KeyboardEvent) => {
       keys[event.key.toLowerCase()] = false;
@@ -934,24 +976,15 @@ export function WorldCanvas() {
         ui.clearDenRequest();
       }
 
+      // Senses (dig/howl/listen) are all outdoor mechanics — the panel is hidden
+      // while denInside, so any stale request is simply dropped here.
       if (ui.senseRequest && ui.senseRequest.nonce !== lastSenseNonce) {
         lastSenseNonce = ui.senseRequest.nonce;
-        denActionKind = ui.senseRequest.kind;
-        denActionUntil = now + (denActionKind === "rest" ? 6000 : 2600);
-        denWalkTarget = null;
-        audio.init();
-        if (denActionKind === "rest") {
-          worldEngine.restInDen();
-          audio.rest();
-        } else if (denActionKind === "sniff") audio.sniff();
-        else if (denActionKind === "dig") audio.dig();
-        else audio.sip();
         ui.clearSenseRequest();
       }
 
-      const resting = now < denActionUntil;
-      const speed = resting ? 0 : 92;
-      const moving = !resting && (Math.abs(inputX) > 0.01 || Math.abs(inputY) > 0.01);
+      const speed = 92;
+      const moving = Math.abs(inputX) > 0.01 || Math.abs(inputY) > 0.01;
       if (moving) {
         const next = clampInsideDen(denFox.x + inputX * speed * delta, denFox.y + inputY * speed * delta);
         denFox = next;
@@ -1000,7 +1033,7 @@ export function WorldCanvas() {
         gait,
         moving,
         participant,
-        resting ? denActionKind : null,
+        null,
         now,
       );
       ctx.restore();
@@ -1122,35 +1155,43 @@ export function WorldCanvas() {
       if (ui.senseRequest && ui.senseRequest.nonce !== lastSenseNonce) {
         lastSenseNonce = ui.senseRequest.nonce;
         actionKind = ui.senseRequest.kind;
-        actionUntil = now + (actionKind === "sniff" ? 4200 : actionKind === "rest" ? 6000 : 2400);
+        actionUntil = now + (actionKind === "howl" ? 2000 : actionKind === "listen" ? 3200 : 2400);
         walkTarget = null;
         audio.init();
-        if (actionKind === "sniff") {
-          const targets = worldEngine.state.placements.filter((item) => item.kind === "berry" || item.kind === "lantern");
-          const target = targets.sort((a, b) => Math.hypot(a.x - position.x, a.y - position.y) - Math.hypot(b.x - position.x, b.y - position.y))[0];
-          const tx = target?.x ?? streamCenter(position.y + 220);
-          const ty = target?.y ?? position.y + 220;
-          for (let index = 1; index <= 12; index += 1) scents.push({ x: position.x + (tx - position.x) * index / 13, y: position.y + (ty - position.y) * index / 13, born: now, phase: random() * 6 });
-          ui.setDiscovery(target ? "A quiet scent lingers between the trees." : "Cool water and bilberry drift on the air.");
-          audio.sniff();
-        } else if (actionKind === "drink") {
-          if (nearWaterBank) {
-            ripples.push({ x: streamCenter(position.y), y: position.y, born: now, strength: 1.3 });
-            ui.setDiscovery("The fox drinks. Rings travel softly across the stream.");
-            audio.sip();
-          } else {
-            ui.setDiscovery("The fox listens for running water.");
-          }
-        } else if (actionKind === "dig") {
+        if (actionKind === "dig") {
           const found = random();
           const foundKind = found > 0.66 ? "a smooth quartz pebble" : found > 0.32 ? "a small pinecone" : "a cluster of glowing berries";
           ui.setDiscovery(`Beneath the moss: ${foundKind}.`);
           audio.dig();
           if (found <= 0.32) worldEngine.place("berry", position.x + 20, position.y + 10, participant);
           if (found > 0.66) worldEngine.place("stone", position.x + 18, position.y + 12, participant);
+        } else if (actionKind === "howl") {
+          worldEngine.place("howl", position.x, position.y, participant);
+          ui.setDiscovery("The call carries through the trees — your companion may hear where you were.");
+          audio.howl();
         } else {
-          ui.setDiscovery("The fox curls into the moss and breathes with the quiet forest.");
-          audio.rest();
+          // listen: point toward the den if it's still unfound, otherwise toward
+          // the companion — a real "find your way" tool, not just flavour.
+          const other: ParticipantId = participant === "elder" ? "child" : "elder";
+          const den = worldEngine.state.den;
+          let tx: number;
+          let ty: number;
+          let message: string;
+          if (!den.discovered) {
+            tx = DEN_EXIT.x;
+            ty = DEN_EXIT.y;
+            message = "A hollow sound rolls from somewhere close by.";
+          } else {
+            const companion = worldEngine.state.positions[other];
+            tx = companion.x;
+            ty = companion.y;
+            message = "Soft pawsteps — your companion isn't far.";
+          }
+          for (let index = 1; index <= 14; index += 1) {
+            scents.push({ x: position.x + (tx - position.x) * index / 15, y: position.y + (ty - position.y) * index / 15, born: now, phase: random() * 6 });
+          }
+          ui.setDiscovery(message);
+          audio.sniff();
         }
         ui.clearSenseRequest();
       }
@@ -1552,6 +1593,92 @@ export function WorldCanvas() {
         }
         ctx.fillStyle = "rgba(222, 228, 226, 0.18)";
         ctx.fillRect(0, 0, viewWidth, viewHeight);
+        ctx.restore();
+      }
+      if (weather === "aurora") {
+        ctx.save();
+        // Ribbons only read against a dark sky, so they lean into the night
+        // tint rather than fighting a bright noon — still visible by day, just hushed.
+        const nightStrength = 0.35 + (1 - cycle.daylight) * 0.65;
+        const bandColors: Array<[number, number, number]> = [
+          [120, 224, 170],
+          [96, 200, 210],
+          [150, 140, 220],
+        ];
+        for (let band = 0; band < 3; band += 1) {
+          const [r, g, b] = bandColors[band] ?? [120, 224, 170];
+          const baseY = viewHeight * (0.08 + band * 0.07);
+          const amp = 34 + band * 12;
+          ctx.beginPath();
+          ctx.moveTo(0, baseY);
+          for (let x = 0; x <= viewWidth; x += 24) {
+            const y =
+              baseY +
+              Math.sin(x * 0.006 + now * 0.00035 + band * 2.1) * amp +
+              Math.sin(x * 0.014 - now * 0.0002 + band) * amp * 0.4;
+            ctx.lineTo(x, y);
+          }
+          for (let x = viewWidth; x >= 0; x -= 24) {
+            const y =
+              baseY +
+              70 +
+              Math.sin(x * 0.006 + now * 0.00035 + band * 2.1) * amp +
+              Math.sin(x * 0.014 - now * 0.0002 + band) * amp * 0.4;
+            ctx.lineTo(x, y);
+          }
+          ctx.closePath();
+          const gradient = ctx.createLinearGradient(0, baseY - amp, 0, baseY + 90 + amp);
+          gradient.addColorStop(0, `rgba(${r}, ${g}, ${b}, 0)`);
+          gradient.addColorStop(0.45, `rgba(${r}, ${g}, ${b}, ${0.22 * nightStrength})`);
+          gradient.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`);
+          ctx.fillStyle = gradient;
+          ctx.fill();
+        }
+        // a scatter of quiet stars, the one weather where the sky itself is the point
+        ctx.fillStyle = `rgba(240, 240, 230, ${0.5 * nightStrength})`;
+        for (const star of auroraStars) {
+          const twinkle = 0.5 + Math.sin(now * 0.002 + star.phase) * 0.5;
+          ctx.globalAlpha = twinkle * nightStrength;
+          ctx.beginPath();
+          ctx.arc(star.x * viewWidth, star.y * viewHeight * 0.4, star.size, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+        ctx.restore();
+      }
+      if (weather === "sun") {
+        // soft shafts of light through the canopy, brightest by day and hushed at dusk/night
+        const brightness = 0.25 + cycle.daylight * 0.75;
+        ctx.save();
+        const sunX = viewWidth * 0.72;
+        const sunY = -viewHeight * 0.1;
+        const glow = ctx.createRadialGradient(sunX, sunY, 0, sunX, sunY, viewWidth * 0.75);
+        glow.addColorStop(0, `rgba(255, 232, 178, ${0.22 * brightness})`);
+        glow.addColorStop(1, "rgba(255, 232, 178, 0)");
+        ctx.fillStyle = glow;
+        ctx.fillRect(0, 0, viewWidth, viewHeight);
+
+        ctx.globalCompositeOperation = "lighter";
+        for (let ray = 0; ray < 5; ray += 1) {
+          const angle = -1.35 + ray * 0.16 + Math.sin(now * 0.00015 + ray) * 0.03;
+          const length = viewHeight * 1.4;
+          const width = 60 + ray * 8;
+          ctx.save();
+          ctx.translate(sunX, sunY);
+          ctx.rotate(angle);
+          const rayGradient = ctx.createLinearGradient(0, 0, 0, length);
+          rayGradient.addColorStop(0, `rgba(255, 244, 205, ${0.1 * brightness})`);
+          rayGradient.addColorStop(1, "rgba(255, 244, 205, 0)");
+          ctx.fillStyle = rayGradient;
+          ctx.beginPath();
+          ctx.moveTo(-width * 0.2, 0);
+          ctx.lineTo(width * 0.2, 0);
+          ctx.lineTo(width, length);
+          ctx.lineTo(-width, length);
+          ctx.closePath();
+          ctx.fill();
+          ctx.restore();
+        }
         ctx.restore();
       }
       // a light, ever-present snowfall through the winter months, regardless of weather

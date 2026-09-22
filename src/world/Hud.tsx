@@ -10,15 +10,14 @@ import {
   Copy,
   DoorClosed,
   DoorOpen,
-  Droplet,
+  Ear,
   Feather,
-  Flower2,
   Footprints,
   Hand,
-  Lamp,
   Leaf,
-  Moon,
+  Megaphone,
   PawPrint,
+  Sparkles,
   Sun,
   TreePine,
   UserPlus,
@@ -34,7 +33,7 @@ import { createNatureJournalNote } from "./journal.functions";
 import { createInvite } from "./pairing.functions";
 import { padRef } from "./WorldCanvas";
 import { useUiStore, type Carried } from "./ui-store";
-import { PARTICIPANTS, type ParticipantId, type PlacementKind, type WeatherKind } from "./types";
+import { PARTICIPANTS, type ParticipantId, type WeatherKind } from "./types";
 import type { MultiplayerStatus } from "./use-multiplayer-sync";
 
 type IconType = typeof Sun;
@@ -44,20 +43,13 @@ const WEATHER: Array<{ kind: WeatherKind; label: string; norwegian: string; Icon
   { kind: "rain", label: "Gentle rain", norwegian: "stille regn", Icon: CloudRain },
   { kind: "mist", label: "Drifting mist", norwegian: "tåkedis", Icon: CloudFog },
   { kind: "sun", label: "Warm sunlight", norwegian: "mildt solskinn", Icon: Sun },
+  { kind: "aurora", label: "Northern lights", norwegian: "nordlys", Icon: Sparkles },
 ];
 
-const TOOLS: Array<{ kind: PlacementKind; label: string; norwegian: string; Icon: IconType }> = [
-  { kind: "stone", label: "Place a stone", norwegian: "varde", Icon: Circle },
-  { kind: "flower", label: "Plant flowers", norwegian: "hvitveis", Icon: Flower2 },
-  { kind: "lantern", label: "Light a lantern", norwegian: "lykt", Icon: Lamp },
-  { kind: "berry", label: "Leave glowing berries", norwegian: "glødende bær", Icon: Cherry },
-];
-
-const SENSES: Array<{ kind: "sniff" | "drink" | "dig" | "rest"; label: string; norwegian: string; Icon: IconType }> = [
-  { kind: "sniff", label: "Scent the air", norwegian: "snuse", Icon: Wind },
-  { kind: "drink", label: "Drink at the stream", norwegian: "drikke", Icon: Droplet },
+const SENSES: Array<{ kind: "dig" | "howl" | "listen"; label: string; norwegian: string; Icon: IconType }> = [
   { kind: "dig", label: "Paw through the moss", norwegian: "grave", Icon: PawPrint },
-  { kind: "rest", label: "Curl up and rest", norwegian: "hvile", Icon: Moon },
+  { kind: "howl", label: "Call into the forest", norwegian: "hyle", Icon: Megaphone },
+  { kind: "listen", label: "Listen for your companion", norwegian: "lytte", Icon: Ear },
 ];
 
 const CARRY_ICONS: Record<string, IconType> = {
@@ -315,24 +307,71 @@ function CompanionPanel({ multiplayer }: { multiplayer: MultiplayerStatus }) {
   );
 }
 
+/**
+ * The one place in the den meant to be read rather than found — a short note
+ * either fox can leave, visible to whoever visits next, local or shared.
+ */
+function DenNotePanel({ participant }: { participant: ParticipantId }) {
+  const [note, setNote] = useState(worldEngine.state.den.note);
+  const [draft, setDraft] = useState(worldEngine.state.den.note?.text ?? "");
+
+  useEffect(() => {
+    const sync = () => setNote(worldEngine.state.den.note);
+    sync();
+    const unsubscribe = worldEngine.subscribe(sync);
+    return () => {
+      unsubscribe();
+    };
+  }, []);
+
+  const save = () => {
+    audio.init();
+    worldEngine.setDenNote(draft, participant);
+  };
+
+  return (
+    <div className="pointer-events-auto w-[min(20rem,calc(100vw-2rem))] rounded-2xl border border-white/10 bg-[#1d2620]/90 p-3 text-[#e7e4d8] shadow-lg backdrop-blur-md">
+      {note ? (
+        <p className="text-xs text-[#e7e4d8]/50">
+          {PARTICIPANTS[note.by].label} skrev:
+        </p>
+      ) : (
+        <p className="text-xs text-[#e7e4d8]/50">Ingen besked endnu</p>
+      )}
+      <textarea
+        value={draft}
+        onChange={(event) => setDraft(event.target.value)}
+        maxLength={280}
+        rows={3}
+        placeholder="Efterlad en besked til den anden ræv…"
+        className="mt-1 w-full resize-none rounded-lg border border-white/10 bg-[#111813]/55 px-3 py-2 text-sm leading-relaxed text-[#f4f1e6] outline-none placeholder:text-[#e7e4d8]/30 focus:border-white/25"
+      />
+      <button
+        type="button"
+        onClick={save}
+        className="mt-2 w-full rounded-lg bg-[#e7e4d8]/18 px-3 py-1.5 text-xs text-[#f4f1e6] transition-colors hover:bg-[#e7e4d8]/28"
+      >
+        Gem besked
+      </button>
+    </div>
+  );
+}
+
 export function Hud({ multiplayer }: { multiplayer: MultiplayerStatus }) {
   const {
     participant,
-    tool,
     weather,
     volume,
     muted,
     note,
     hintSeen,
     discovery,
-    nearWater,
     denInside,
     nearDen,
     nearNiche,
     gatherable,
     carried,
     setParticipant,
-    setTool,
     setWeather,
     setVolume,
     setMuted,
@@ -343,6 +382,7 @@ export function Hud({ multiplayer }: { multiplayer: MultiplayerStatus }) {
   const lastVisit = useRef<Record<ParticipantId, number>>({ elder: 0, child: 0 });
   const writeJournalNote = useServerFn(createNatureJournalNote);
   const [journalOpen, setJournalOpen] = useState(false);
+  const [noteOpen, setNoteOpen] = useState(false);
   const [observation, setObservation] = useState("");
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
   const [journalBusy, setJournalBusy] = useState(false);
@@ -407,19 +447,6 @@ export function Hud({ multiplayer }: { multiplayer: MultiplayerStatus }) {
     return () => clearTimeout(timer);
   }, [discovery, setDiscovery]);
 
-  const place = () => {
-    audio.init();
-    const position = worldEngine.position(participant);
-    const offset = 26;
-    worldEngine.place(
-      tool,
-      position.x + (Math.random() - 0.5) * offset,
-      position.y + offset * 0.8,
-      participant,
-    );
-    audio.placement(tool);
-  };
-
   const switchParticipant = () => {
     audio.init();
     const next: ParticipantId = participant === "elder" ? "child" : "elder";
@@ -468,13 +495,15 @@ export function Hud({ multiplayer }: { multiplayer: MultiplayerStatus }) {
       <div className={`absolute left-4 top-4 flex flex-col gap-2 ${quiet}`}>
         <Panel>
           {multiplayer.kind === "paired" ? (
-            <IconButton
-              Icon={PawPrint}
-              label={`You are ${PARTICIPANTS[participant].label} — shared with your companion`}
-              onClick={() => {}}
-              dim
-              tint={PARTICIPANTS[participant].hue}
-            />
+            // In shared play you're always your own fox — a switcher would let you
+            // wander around as your companion, which defeats the whole point.
+            <div
+              title={`You are ${PARTICIPANTS[participant].label} — shared with your companion`}
+              aria-label={`You are ${PARTICIPANTS[participant].label} — shared with your companion`}
+              className="flex min-h-11 min-w-11 items-center justify-center rounded-xl text-[#e7e4d8]/70"
+            >
+              <PawPrint className="size-5" strokeWidth={1.6} style={{ color: PARTICIPANTS[participant].hue }} aria-hidden="true" />
+            </div>
           ) : (
             <IconButton
               Icon={PawPrint}
@@ -510,22 +539,23 @@ export function Hud({ multiplayer }: { multiplayer: MultiplayerStatus }) {
       </div>
 
       <div className={`absolute bottom-4 left-4 flex flex-col gap-2 ${quiet}`}>
-        <Panel accent="#8caa6a">
-          <div className="flex gap-1">
-            {SENSES.map((item) => (
-              <IconButton
-                key={item.kind}
-                Icon={item.Icon}
-                label={item.label}
-                norwegian={item.norwegian}
-                dim={item.kind === "drink" && !nearWater && !denInside}
-                onClick={() => requestSense(item.kind)}
-              />
-            ))}
-          </div>
-        </Panel>
+        {denInside ? null : (
+          <Panel accent="#8caa6a">
+            <div className="flex gap-1">
+              {SENSES.map((item) => (
+                <IconButton
+                  key={item.kind}
+                  Icon={item.Icon}
+                  label={item.label}
+                  norwegian={item.norwegian}
+                  onClick={() => requestSense(item.kind)}
+                />
+              ))}
+            </div>
+          </Panel>
+        )}
 
-        {/* the den: entering, carrying, laying things down, inviting */}
+        {/* the den: entering, carrying, laying things down, inviting, a shared note */}
         {denInside || nearDen || gatherable || carried ? (
           <Panel accent="#a87c52">
             <div className="flex items-center gap-1">
@@ -554,36 +584,21 @@ export function Hud({ multiplayer }: { multiplayer: MultiplayerStatus }) {
               {denInside ? (
                 <IconButton Icon={Footprints} label="Leave a scent trail to the den" norwegian="invitasjon" onClick={() => requestDen("invite")} />
               ) : null}
+              {denInside ? (
+                <IconButton
+                  Icon={Feather}
+                  label="Leave a note for your companion"
+                  norwegian="besked"
+                  active={noteOpen}
+                  onClick={() => setNoteOpen((open) => !open)}
+                />
+              ) : null}
               {carried ? <CarryBadge carried={carried} /> : null}
             </div>
           </Panel>
         ) : null}
 
-        {denInside ? null : (
-          <Panel accent="#d9a441">
-            <div className="flex items-center gap-1">
-              {TOOLS.map((item) => (
-                <IconButton
-                  key={item.kind}
-                  Icon={item.Icon}
-                  label={item.label}
-                  norwegian={item.norwegian}
-                  active={tool === item.kind}
-                  onClick={() => setTool(item.kind)}
-                />
-              ))}
-              <button
-                type="button"
-                onClick={place}
-                title="Leave it here"
-                aria-label="Leave it here"
-                className="pointer-events-auto ml-1 flex min-h-11 min-w-11 items-center justify-center rounded-xl bg-[#e7e4d8]/18 text-[#f4f1e6] transition-colors hover:bg-[#e7e4d8]/28"
-              >
-                <ArrowDownToLine className="size-5" strokeWidth={1.6} aria-hidden="true" />
-              </button>
-            </div>
-          </Panel>
-        )}
+        {denInside && noteOpen ? <DenNotePanel participant={participant} /> : null}
       </div>
 
       <div className={`absolute bottom-4 right-4 flex flex-col items-end gap-3 ${journalOpen ? "opacity-100" : quiet}`}>

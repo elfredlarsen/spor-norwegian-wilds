@@ -1,4 +1,4 @@
-import type { PlacementKind, WeatherKind } from "./types";
+import type { WeatherKind } from "./types";
 
 type Layer = { gain: GainNode; filter: BiquadFilterNode; target: number };
 type FootstepSurface = "moss" | "gravel" | "wet" | "water";
@@ -33,6 +33,7 @@ class ForestAudio {
   private water: Layer | null = null;
   private rain: Layer | null = null;
   private birds: Layer | null = null;
+  private aurora: Layer | null = null;
   private muted = false;
   private volume = 0.45;
   private weather: WeatherKind = "clear";
@@ -80,8 +81,65 @@ class ForestAudio {
 
     master.gain.setTargetAtTime(this.muted ? 0 : this.volume, context.currentTime, 0.22);
     this.scheduleBubble();
+    this.setupAurora();
     void this.loadAmbienceBeds();
     void this.loadFootstepBuffers();
+  }
+
+  /**
+   * Nothing recorded fits "the sound of the aurora" — it doesn't have one.
+   * A slow, detuned open chord under a shimmering filter sweep is the honest
+   * synthesized stand-in, built the same way the rest of this file's
+   * procedural accents are.
+   */
+  private setupAurora() {
+    const context = this.context;
+    const ambience = this.ambience;
+    if (!context || !ambience) return;
+    const filter = context.createBiquadFilter();
+    filter.type = "lowpass";
+    filter.frequency.value = 1400;
+    filter.Q.value = 0.4;
+    const gain = context.createGain();
+    gain.gain.value = 0;
+    filter.connect(gain);
+    gain.connect(ambience);
+
+    for (const [index, frequency] of [196, 246.94, 293.66].entries()) {
+      const osc = context.createOscillator();
+      osc.type = "sine";
+      osc.frequency.value = frequency;
+      const detune = context.createOscillator();
+      detune.type = "sine";
+      detune.frequency.value = frequency * 1.003;
+      const oscGain = context.createGain();
+      oscGain.gain.value = 0.3;
+      osc.connect(oscGain);
+      detune.connect(oscGain);
+      oscGain.connect(filter);
+      osc.start();
+      detune.start();
+      // a slow, independent wander per note so the chord never feels static
+      const wander = context.createOscillator();
+      wander.type = "sine";
+      wander.frequency.value = 0.02 + index * 0.007;
+      const wanderGain = context.createGain();
+      wanderGain.gain.value = 1.5;
+      wander.connect(wanderGain);
+      wanderGain.connect(osc.detune);
+      wander.start();
+    }
+
+    const lfo = context.createOscillator();
+    lfo.type = "sine";
+    lfo.frequency.value = 0.035;
+    const lfoGain = context.createGain();
+    lfoGain.gain.value = 900;
+    lfo.connect(lfoGain);
+    lfoGain.connect(filter.frequency);
+    lfo.start();
+
+    this.aurora = { gain, filter, target: 0 };
   }
 
   private async loadBuffer(url: string): Promise<AudioBuffer | null> {
@@ -198,6 +256,7 @@ class ForestAudio {
     this.ramp(this.wind, this.weather === "mist" || this.weather === "rain" ? 0 : 0.05 * indoors, time);
     this.ramp(this.windCalm, this.weather === "mist" ? 0.055 * indoors : 0, this.weather === "mist" ? 2.8 : 1.8);
     this.ramp(this.rain, this.weather === "rain" ? 0.075 * indoors : 0, time);
+    this.ramp(this.aurora, this.weather === "aurora" ? 0.05 * indoors : 0, this.weather === "aurora" ? 3.5 : 2.2);
     if (this.context && this.ambienceFilter) {
       const open = this.weather === "mist" ? 720 : this.weather === "rain" ? 7200 : 12000;
       const sheltered = 620 - this.warmth * 180;
@@ -256,8 +315,9 @@ class ForestAudio {
 
   private applyAmbient(time = 2.2) {
     const indoors = 1 - this.shelter;
-    // birdsong settles in by mid-morning and fades before dusk, only when weather is calm
-    const calm = this.weather === "sun" || this.weather === "clear" ? 1 : this.weather === "mist" ? 0.4 : 0.1;
+    // birdsong settles in by mid-morning and fades before dusk, only when weather is calm —
+    // sun brings the forest fully alive, clear air is a touch quieter and more still
+    const calm = this.weather === "sun" ? 1.3 : this.weather === "clear" ? 0.8 : this.weather === "mist" ? 0.4 : 0.1;
     const level = Math.max(0, this.daylight - 0.15) * this.birdActivity * calm * indoors * 0.05;
     this.ramp(this.birds, level, time);
   }
@@ -421,39 +481,46 @@ class ForestAudio {
     this.softTone(225, 0.24, 0.012);
   }
 
-  sip() {
-    this.duckAmbience(0.68, 1.25);
-    this.noiseBurst("pink", 780, 0.55, 0.009);
-    this.softTone(315, 0.42, 0.01);
-    this.softTone(405, 0.34, 0.007, "sine", 0.24);
-    this.softTone(285, 0.3, 0.006, "sine", 0.58);
-  }
-
   dig() {
     this.noiseBurst("brown", 360, 0.38, 0.018, "lowpass");
     this.noiseBurst("pink", 1150, 0.22, 0.008);
     this.softTone(88, 0.2, 0.009);
   }
 
-  rest() {
-    this.duckAmbience(0.72, 4.6);
-    this.noiseBurst("brown", 260, 0.7, 0.015, "lowpass");
-    this.softTone(155, 0.8, 0.009, "sine", 0.08);
-    this.noiseBurst("pink", 540, 0.65, 0.004, "lowpass");
-    this.softTone(118, 1.1, 0.006, "sine", 1.7);
-    this.softTone(112, 1.2, 0.005, "sine", 3.5);
+  /** A call meant to carry — a short rising howl. */
+  howl() {
+    this.duckAmbience(0.55, 1.4);
+    const context = this.context;
+    const master = this.master;
+    if (!context || !master || this.muted) return;
+    const start = context.currentTime;
+    const oscillator = context.createOscillator();
+    const filter = context.createBiquadFilter();
+    const gain = context.createGain();
+    oscillator.type = "sawtooth";
+    filter.type = "lowpass";
+    filter.frequency.value = 1100;
+    filter.Q.value = 0.6;
+    oscillator.frequency.setValueAtTime(220, start);
+    oscillator.frequency.linearRampToValueAtTime(340, start + 0.35);
+    oscillator.frequency.exponentialRampToValueAtTime(210, start + 1.1);
+    gain.gain.setValueAtTime(0.0001, start);
+    gain.gain.exponentialRampToValueAtTime(0.05, start + 0.15);
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + 1.15);
+    oscillator.connect(filter);
+    filter.connect(gain);
+    gain.connect(master);
+    oscillator.start(start);
+    oscillator.stop(start + 1.2);
+    this.noiseBurst("pink", 1400, 0.3, 0.006, "highpass");
   }
 
-  placement(kind: PlacementKind) {
-    if (kind === "stone") {
-      this.softTone(238, 0.38, 0.018, "sine");
-      this.softTone(321, 0.3, 0.01, "sine", 0.045);
-      this.noiseBurst("brown", 420, 0.12, 0.006, "lowpass");
-      return;
-    }
-    const root = kind === "lantern" ? 392 : kind === "flower" ? 440 : 330;
-    this.softTone(root, 1.25, 0.018, "triangle");
-    this.softTone(root * 1.5, 1.05, 0.009, "sine", 0.09);
+  /** A brief hush, ears turned toward something far off. */
+  listen() {
+    this.duckAmbience(0.5, 1.6);
+    this.noiseBurst("pink", 2600, 0.5, 0.004, "highpass");
+    this.softTone(700, 0.4, 0.006, "sine");
+    this.softTone(1050, 0.35, 0.004, "sine", 0.12);
   }
 
   discoveryResonance() {

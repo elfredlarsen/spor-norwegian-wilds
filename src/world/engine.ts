@@ -19,7 +19,7 @@ const TRAIL_LIMIT = 900;
 const PLACEMENT_LIMIT = 600;
 
 function emptyDen(): DenState {
-  return { discovered: false, rests: 0, bedding: [], keepsakes: [], invitation: null };
+  return { discovered: false, rests: 0, bedding: [], keepsakes: [], invitation: null, note: null };
 }
 
 function emptyWorld(): WorldState {
@@ -344,6 +344,14 @@ class WorldEngine {
 
   setInvitation(path: Array<{ x: number; y: number }>, by: ParticipantId) {
     this.state.den.invitation = { by, at: Date.now(), path };
+    this.emit();
+    this.pushWorldState();
+  }
+
+  /** A short note left for whoever visits the den next — replaces the previous one. */
+  setDenNote(text: string, by: ParticipantId) {
+    const trimmed = text.trim().slice(0, 280);
+    this.state.den.note = trimmed ? { text: trimmed, by, at: Date.now() } : null;
     this.emit();
     this.pushWorldState();
   }

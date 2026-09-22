@@ -1,8 +1,8 @@
 export type ParticipantId = "elder" | "child";
 
-export type WeatherKind = "clear" | "rain" | "mist" | "sun";
+export type WeatherKind = "clear" | "rain" | "mist" | "sun" | "aurora";
 
-export type PlacementKind = "stone" | "flower" | "lantern" | "berry";
+export type PlacementKind = "stone" | "flower" | "lantern" | "berry" | "howl";
 
 export type Placement = {
   id: string;
@@ -54,12 +54,20 @@ export type DenInvitation = {
   path: Array<{ x: number; y: number }>;
 };
 
+export type DenNote = {
+  text: string;
+  by: ParticipantId;
+  at: number;
+};
+
 export type DenState = {
   discovered: boolean;
   rests: number;
   bedding: DenBedding[];
   keepsakes: DenKeepsakePlacement[];
   invitation: DenInvitation | null;
+  /** A short note left for whoever visits next — the one thing in the den meant to be read, not just found. */
+  note: DenNote | null;
 };
 
 export type WorldState = {
