@@ -176,8 +176,7 @@ class WorldEngine {
           this.emit();
         },
       )
-      .subscribe((st: string) => console.log('BR channel', st));
-    console.log('BR end');
+      .subscribe();
   }
 
   unbindRemote() {
@@ -271,7 +270,7 @@ class WorldEngine {
         y: placement.y,
         variant: placement.variant,
         by: this.myUserId,
-      } as never).then((r: { error: unknown }) => console.log("MP insert", JSON.stringify(r.error)));
+      } as never);
     }
     return placement;
   }

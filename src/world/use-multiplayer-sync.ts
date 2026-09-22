@@ -43,7 +43,6 @@ export function useMultiplayerSync(): MultiplayerStatus {
     setStatus({ kind: "loading" });
     getMyPairing()
       .then(async (pairing) => {
-        console.log('MP pairing', JSON.stringify(pairing));
         if (stale()) return;
         if (!pairing) {
           setStatus({ kind: "unpaired" });
@@ -59,16 +58,13 @@ export function useMultiplayerSync(): MultiplayerStatus {
         if (pairing.companionId) roleByUserId[pairing.companionId] = "child";
         if (bound.current !== pairing.pairingId) {
           bound.current = pairing.pairingId;
-          console.log('MP bind start');
           await worldEngine.bindRemote(pairing.pairingId, pairing.myUserId, roleByUserId);
-          console.log('MP bind done');
         }
         if (stale()) return;
         setParticipant(pairing.role);
         setStatus({ kind: "paired", role: pairing.role });
       })
-      .catch((e) => {
-        console.log('MP error', String(e));
+      .catch(() => {
         if (!stale()) setStatus({ kind: "unpaired" });
       });
   }, [userId, authLoading, setParticipant]);
