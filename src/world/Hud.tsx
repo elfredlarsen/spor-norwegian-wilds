@@ -379,7 +379,6 @@ export function Hud({ multiplayer }: { multiplayer: MultiplayerStatus }) {
     requestSense,
     requestDen,
   } = useUiStore();
-  const lastVisit = useRef<Record<ParticipantId, number>>({ elder: 0, child: 0 });
   const writeJournalNote = useServerFn(createNatureJournalNote);
   const [journalOpen, setJournalOpen] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
@@ -447,23 +446,6 @@ export function Hud({ multiplayer }: { multiplayer: MultiplayerStatus }) {
     return () => clearTimeout(timer);
   }, [discovery, setDiscovery]);
 
-  const switchParticipant = () => {
-    audio.init();
-    const next: ParticipantId = participant === "elder" ? "child" : "elder";
-    const since = lastVisit.current[next];
-    const traces = worldEngine.tracesFrom(participant, since);
-    lastVisit.current[participant] = Date.now();
-    setParticipant(next);
-    if (traces.length > 0) {
-      audio.discoveryResonance();
-      setDiscovery(
-        `Something was left here while you were away — ${traces.length} new ${
-          traces.length === 1 ? "trace" : "traces"
-        } to find.`,
-      );
-    }
-  };
-
   const submitJournal = async (event: React.FormEvent) => {
     event.preventDefault();
     const value = observation.trim();
@@ -494,24 +476,15 @@ export function Hud({ multiplayer }: { multiplayer: MultiplayerStatus }) {
     <div className="pointer-events-none absolute inset-0 z-10 select-none font-[var(--font-display)] text-[#e7e4d8]">
       <div className={`absolute left-4 top-4 flex flex-col gap-2 ${quiet}`}>
         <Panel>
-          {multiplayer.kind === "paired" ? (
-            // In shared play you're always your own fox — a switcher would let you
-            // wander around as your companion, which defeats the whole point.
-            <div
-              title={`You are ${PARTICIPANTS[participant].label} — shared with your companion`}
-              aria-label={`You are ${PARTICIPANTS[participant].label} — shared with your companion`}
-              className="flex min-h-11 min-w-11 items-center justify-center rounded-xl text-[#e7e4d8]/70"
-            >
-              <PawPrint className="size-5" strokeWidth={1.6} style={{ color: PARTICIPANTS[participant].hue }} aria-hidden="true" />
-            </div>
-          ) : (
-            <IconButton
-              Icon={PawPrint}
-              label={`Switch to the other fox — now ${PARTICIPANTS[participant].label}`}
-              onClick={switchParticipant}
-              tint={PARTICIPANTS[participant].hue}
-            />
-          )}
+          {/* Which fox you are is fixed — by your paired role once shared, or
+              simply always yourself in solo play. Nothing here is clickable. */}
+          <div
+            title={`You are ${PARTICIPANTS[participant].label}`}
+            aria-label={`You are ${PARTICIPANTS[participant].label}`}
+            className="flex min-h-11 min-w-11 items-center justify-center rounded-xl text-[#e7e4d8]/70"
+          >
+            <PawPrint className="size-5" strokeWidth={1.6} style={{ color: PARTICIPANTS[participant].hue }} aria-hidden="true" />
+          </div>
         </Panel>
 
         <CompanionPanel multiplayer={multiplayer} />
@@ -683,6 +656,19 @@ export function Hud({ multiplayer }: { multiplayer: MultiplayerStatus }) {
         <PawPrint className="size-6 animate-pulse" strokeWidth={1.4} />
         <span className="text-lg opacity-50">→</span>
         <Hand className="size-6" strokeWidth={1.4} />
+      </div>
+
+      {/* what a sense just found — dig, howl and listen all speak through this */}
+      <div
+        className={`pointer-events-none absolute left-1/2 top-16 max-w-xs -translate-x-1/2 text-center transition-opacity duration-700 ${
+          discovery ? "opacity-100" : "opacity-0"
+        }`}
+      >
+        {discovery ? (
+          <p className="rounded-full border border-white/10 bg-[#1d2620]/80 px-4 py-2 text-sm text-[#f0ecdf] shadow-lg backdrop-blur-md">
+            {discovery}
+          </p>
+        ) : null}
       </div>
 
 

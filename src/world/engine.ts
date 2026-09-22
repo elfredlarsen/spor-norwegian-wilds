@@ -355,11 +355,6 @@ class WorldEngine {
     this.emit();
     this.pushWorldState();
   }
-
-  /** Anything another participant left since the given moment. */
-  tracesFrom(other: ParticipantId, since: number) {
-    return this.state.placements.filter((item) => item.by === other && item.at > since);
-  }
 }
 
 export const worldEngine = new WorldEngine();
