@@ -48,6 +48,12 @@ function emptyWorld(): WorldState {
  * feeds the companion's changes back in. Unpaired play is untouched — those
  * writes simply never happen and everything stays on localStorage, as before.
  */
+/**
+ * Supabase query builders are lazy thenables: nothing is sent until the promise
+ * is awaited. Fire-and-forget writes therefore have to end in .then(noop).
+ */
+const noop = () => {};
+
 class WorldEngine {
   state: WorldState = emptyWorld();
   private listeners = new Set<() => void>();
@@ -150,7 +156,7 @@ class WorldEngine {
             variant: item.variant,
             by: myUserId,
           })) as never,
-        );
+        ).then(noop);
       }
     }
     this.emit();
@@ -225,7 +231,8 @@ class WorldEngine {
         den: this.state.den,
         updated_at: new Date().toISOString(),
       } as never)
-      .eq("pairing_id", this.pairingId);
+      .eq("pairing_id", this.pairingId)
+      .then(noop);
   }
 
   position(participant: ParticipantId) {
@@ -270,7 +277,7 @@ class WorldEngine {
         y: placement.y,
         variant: placement.variant,
         by: this.myUserId,
-      } as never);
+      } as never).then(noop);
     }
     return placement;
   }
