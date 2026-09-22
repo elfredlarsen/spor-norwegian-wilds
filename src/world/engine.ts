@@ -120,6 +120,7 @@ class WorldEngine {
     this.myUserId = myUserId;
     this.roleByUserId = roleByUserId;
 
+    const localOnly = this.state.placements;
     const [worldRow, placementRows] = await Promise.all([
       supabase.from("world_state" as never).select("*").eq("pairing_id", pairingId).maybeSingle(),
       supabase.from("placements" as never).select("*").eq("pairing_id", pairingId).order("at", { ascending: true }),
@@ -130,6 +131,27 @@ class WorldEngine {
       const rows = placementRows.data as unknown as PlacementRow[];
       this.state.placements = rows.map((row) => this.placementFromRow(row));
       this.knownPlacementIds = new Set(this.state.placements.map((item) => item.id));
+
+      // Anything laid down before the pairing finished loading was only in this
+      // browser. Carry it across instead of letting the shared world erase it.
+      const unsynced = localOnly.filter((item) => !this.knownPlacementIds.has(item.id));
+      if (unsynced.length > 0) {
+        for (const item of unsynced) {
+          this.state.placements.push(item);
+          this.knownPlacementIds.add(item.id);
+        }
+        void supabase.from("placements" as never).insert(
+          unsynced.map((item) => ({
+            id: item.id,
+            pairing_id: pairingId,
+            kind: item.kind,
+            x: item.x,
+            y: item.y,
+            variant: item.variant,
+            by: myUserId,
+          })) as never,
+        );
+      }
     }
     this.emit();
 
