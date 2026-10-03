@@ -2,12 +2,14 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { createServerFn } from "@tanstack/react-start";
 import { streamText } from "ai";
 import { z } from "zod";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 const journalInput = z.object({
   observation: z.string().trim().min(2).max(800),
 });
 
 export const createNatureJournalNote = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((data) => journalInput.parse(data))
   .handler(async ({ data }) => {
     const apiKey = process.env["LOVABLE_API_KEY"];
