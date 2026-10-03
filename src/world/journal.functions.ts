@@ -9,6 +9,7 @@ const journalInput = z.object({
 });
 
 export const createNatureJournalNote = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((data) => journalInput.parse(data))
   .handler(async ({ data }) => {
     const apiKey = process.env["LOVABLE_API_KEY"];
