@@ -5,10 +5,12 @@ import type { DenState, Placement, WeatherState } from "./types";
 import type { PairingRow } from "./multiplayer-types";
 
 function randomInviteCode(): string {
-  // short and easy to read aloud / paste — not a security boundary on its
-  // own, the row it points to only ever accepts one companion (see the
-  // migration's unique index and the "already accepted" check below).
-  return Array.from({ length: 8 }, () => "abcdefghjkmnpqrstuvwxyz23456789"[Math.floor(Math.random() * 32)]).join("");
+  // short and easy to read aloud / paste — still drawn from a cryptographic
+  // source so a code cannot be guessed or enumerated.
+  const alphabet = "abcdefghjkmnpqrstuvwxyz23456789";
+  const bytes = new Uint32Array(8);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (value) => alphabet[value % alphabet.length]).join("");
 }
 
 const seedInput = z.object({
